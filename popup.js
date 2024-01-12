@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
     .addEventListener("click", function () {
       togglePlayPauseIcon();
       sendMessageToContentScript({ action: "togglePlayPause" });
+      checkVideoStatus();
     });
 });
 
@@ -33,16 +34,25 @@ function checkVideoStatus() {
 }
 
 function updatePopup(response) {
+  const statusDiv = document.getElementById("status");
+  const detailsDiv = document.getElementById("details");
+
   if (response && response.videoExists) {
     let statusText = "Video is " + (response.isPlaying ? "playing" : "paused");
-    document.getElementById("status").className = "status active";
-    document.getElementById("status").textContent = statusText;
-    document.getElementById("details").textContent =
-      "Alt + Right Arrow: Skip 30s forward\nAlt + Left Arrow: Skip 30s back";
+    statusDiv.textContent = statusText;
+    detailsDiv.textContent =
+      `Alt + Right Arrow: Skip 30s forward\nAlt + Left Arrow: Skip 30s back`;
+
+    // Update the class based on playing status
+    if (response.isPlaying) {
+      statusDiv.className = "status status-playing";
+    } else {
+      statusDiv.className = "status status-paused";
+    }
   } else {
-    document.getElementById("status").className = "status inactive";
-    document.getElementById("status").textContent = "No videos found";
-    document.getElementById("details").textContent = "";
+    statusDiv.className = "status status-inactive";
+    statusDiv.textContent = "No videos found";
+    detailsDiv.textContent = "";
   }
 }
 

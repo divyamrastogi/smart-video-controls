@@ -41,6 +41,20 @@
             border: 1px solid #b3e5fc;
         }
 
+        .status-playing {
+            background-color: #e1f5fe;
+            /* Light greenish background for playing status */
+            color: #0277bd;
+            /* Darker greenish text */
+        }
+
+        .status-paused {
+            background-color: #f8d7da;
+            /* Light reddish background for paused status */
+            color: #721c24;
+            /* Darker reddish text */
+        }
+
         .inactive {
             background-color: #f8d7da;
             color: #721c24;
@@ -76,6 +90,36 @@
             height: 20px;
             width: 20px;
         }
+
+        .check-video-button {
+            background-color: #4CAF50;
+            /* Green background */
+            color: white;
+            /* White text */
+            border: none;
+            padding: 0.5em 1em;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 11px;
+            margin: 4px 2px;
+            transition-duration: 0.4s;
+            cursor: pointer;
+            border-radius: 5px;
+            /* Rounded corners */
+            box-sizing: border-box;
+            border: 1px solid #4CAF50;
+        }
+
+        .check-video-button:hover {
+            background-color: white;
+            color: #4CAF50;
+        }
+
+        .buttons-container {
+            display: flex;
+            justify-content: space-between;
+        }
     </style>
 </head>
 
@@ -86,43 +130,41 @@
 
     <div class="content">
         <div id="status" class="status inactive">Checking status...</div>
+        <div class="buttons-container">
+
+            <button id="playPauseButton" class="control-button">
+                <!-- Combined SVG for Play and Pause Icons -->
+                <svg viewBox="0 0 24 24">
+                    <!-- Play Icon (Initially visible) -->
+                    <path d="M8 5v14l11-7z" id="playIcon" />
+                    <!-- Pause Icon (Initially hidden) -->
+                    <g id="pauseIcon" style="display: none;">
+                        <rect x="6" y="5" width="4" height="14" />
+                        <rect x="14" y="5" width="4" height="14" />
+                    </g>
+                </svg>
+            </button>
+
+
+            <!-- Rewind Button -->
+            <button id="rewindButton" class="control-button">
+                <!-- SVG for Rewind Icon -->
+                <svg viewBox="0 0 24 24">
+                    <path d="M20 18l-8.5-6L20 6v12zM10 6H8v12h2z" />
+                </svg>
+            </button>
+
+            <!-- Skip Ahead Button -->
+            <button id="skipAheadButton" class="control-button">
+                <!-- SVG for Forward Icon -->
+                <svg viewBox="0 0 24 24">
+                    <path d="M4 18l8.5-6L4 6v12zM14 6h2v12h-2z" />
+                </svg>
+            </button>
+            <button class="check-video-button" id="checkVideoButton">Check Video Status</button>
+        </div>
         <div id="details" class="shortcut-description"></div>
-        <button id="playPauseButton" class="control-button">
-            <!-- Combined SVG for Play and Pause Icons -->
-            <svg viewBox="0 0 24 24">
-                <!-- Play Icon (Initially visible) -->
-                <path d="M8 5v14l11-7z" id="playIcon" />
-                <!-- Pause Icon (Initially hidden) -->
-                <g id="pauseIcon" style="display: none;">
-                    <rect x="6" y="5" width="4" height="14" />
-                    <rect x="14" y="5" width="4" height="14" />
-                </g>
-            </svg>
-        </button>
-
-
-        <!-- Rewind Button -->
-        <button id="rewindButton" class="control-button">
-            <!-- SVG for Rewind Icon -->
-            <svg viewBox="0 0 24 24">
-                <path d="M20 18l-8.5-6L20 6v12zM10 6H8v12h2z" />
-            </svg>
-        </button>
-
-        <!-- Skip Ahead Button -->
-        <button id="skipAheadButton" class="control-button">
-            <!-- SVG for Forward Icon -->
-            <svg viewBox="0 0 24 24">
-                <path d="M4 18l8.5-6L4 6v12zM14 6h2v12h-2z" />
-            </svg>
-        </button>
-
-        <button id="checkVideoButton">Check Video Status</button>
     </div>
-
-    <!-- ... existing code ... -->
-
-    <div class="footer">Your Extension Name © 2024</div>
     <script src="popup.js"></script>
 </body>
 
