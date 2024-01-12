@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Video Control Status</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            min-width: 300px;
+        }
+
+        .header {
+            background-color: #446dab;
+            color: white;
+            padding: 12px 15px;
+            border-radius: 3px 3px 0 0;
+            font-size: 16px;
+        }
+
+        .content {
+            padding: 20px;
+            text-align: left;
+        }
+
+        .status {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .active {
+            background-color: #e1f5fe;
+            /* Light blue background for active status */
+            color: #0277bd;
+            /* Darker blue for the text */
+            border: 1px solid #b3e5fc;
+        }
+
+        .inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .footer {
+            font-size: 0.9em;
+            text-align: center;
+            color: #666;
+            padding: 15px 20px;
+            border-top: 1px solid #ddd;
+            background: #fafafa;
+            border-radius: 0 0 3px 3px;
+        }
+
+        .shortcut-description {
+            font-size: 0.95em;
+            line-height: 1.4;
+            margin-top: 5px;
+        }
+
+        .control-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            margin: 2px;
+        }
+
+        .control-button svg {
+            fill: #446dab;
+            height: 20px;
+            width: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">Video Control Status</div>
+    <!-- ... existing code ... -->
+
+    <div class="content">
+        <div id="status" class="status inactive">Checking status...</div>
+        <div id="details" class="shortcut-description"></div>
+        <button id="playPauseButton" class="control-button">
+            <!-- Combined SVG for Play and Pause Icons -->
+            <svg viewBox="0 0 24 24">
+                <!-- Play Icon (Initially visible) -->
+                <path d="M8 5v14l11-7z" id="playIcon" />
+                <!-- Pause Icon (Initially hidden) -->
+                <g id="pauseIcon" style="display: none;">
+                    <rect x="6" y="5" width="4" height="14" />
+                    <rect x="14" y="5" width="4" height="14" />
+                </g>
+            </svg>
+        </button>
+
+
+        <!-- Rewind Button -->
+        <button id="rewindButton" class="control-button">
+            <!-- SVG for Rewind Icon -->
+            <svg viewBox="0 0 24 24">
+                <path d="M20 18l-8.5-6L20 6v12zM10 6H8v12h2z" />
+            </svg>
+        </button>
+
+        <!-- Skip Ahead Button -->
+        <button id="skipAheadButton" class="control-button">
+            <!-- SVG for Forward Icon -->
+            <svg viewBox="0 0 24 24">
+                <path d="M4 18l8.5-6L4 6v12zM14 6h2v12h-2z" />
+            </svg>
+        </button>
+
+        <button id="checkVideoButton">Check Video Status</button>
+    </div>
+
+    <!-- ... existing code ... -->
+
+    <div class="footer">Your Extension Name © 2024</div>
+    <script src="popup.js"></script>
+</body>
+
+</html>
