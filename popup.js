@@ -101,3 +101,9 @@ document.getElementById("rewindButton").addEventListener("click", function () {
 });
 
 // ... existing checkVideoStatus function and event listeners ...
+
+document.getElementById('configureButton').addEventListener('click', function() {
+  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "startSelection" });
+  });
+});

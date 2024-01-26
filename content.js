@@ -13,6 +13,19 @@ if (!inIframe()) {
       iframe.contentWindow.postMessage({ type: "setup-video-listener" }, "*");
     });
   }
+
+    // Use the saved CSS selector to click the 'next episode' button or link
+  chrome.storage.sync.get('nextEpisodeSelector', function(data) {
+    if (data.nextEpisodeSelector) {
+        window.addEventListener('message', function(event) {
+            if (event.data.action === 'nextEpisodeClicked') {
+                const nextEpisodeButton = document.querySelector(data.nextEpisodeSelector);
+                if (nextEpisodeButton) nextEpisodeButton.click();
+            }
+        });
+    }
+  });
+
 }
 
 if (inIframe()) {
@@ -21,6 +34,47 @@ if (inIframe()) {
       setupVideoListeners(); // your setup code here
     }
   });
+
+  const video = document.querySelector('video');
+    if (video) {
+        // Create and style the "Next Episode" button
+        const nextButton = document.createElement('button');
+        nextButton.textContent = 'Next Episode';
+        nextButton.style.position = 'absolute';
+        nextButton.style.right = '100px';
+        nextButton.style.bottom = '100px';
+        nextButton.style.zIndex = '1000'; // Ensure it appears above other elements
+        nextButton.style.padding = '10px';
+        nextButton.style.backgroundColor = '#f8f9fa';
+        nextButton.style.border = 'none';
+        nextButton.style.borderRadius = '5px';
+        nextButton.style.cursor = 'pointer';
+
+        // Function to show the "Next Episode" button towards the end of the video
+        function checkVideoEnd() {
+            if ((video.duration - video.currentTime) < 30) { // Show button 30 seconds before video ends
+                nextButton.style.display = 'block';
+            } else {
+                nextButton.style.display = 'none';
+            }
+        }
+
+        // Add the button to the document
+        document.body.appendChild(nextButton);
+
+        // Hide the button initially
+        nextButton.style.display = 'none';
+
+        // Check periodically if the video is about to end
+        video.addEventListener('timeupdate', checkVideoEnd);
+
+          // Event listener for the Next Episode button
+          nextButton.addEventListener('click', function() {
+              // Send a message to the parent page
+              window.parent.postMessage({ action: 'nextEpisodeClicked' }, '*');
+          });
+      }
+
 }
 
 function setupVideoListeners() {
@@ -65,6 +119,8 @@ document.addEventListener("keydown", function (e) {
       } else if (e.key === "ArrowLeft") {
         // Left arrow key
         video.currentTime -= 30;
+      } else if (e.code === "KeyN") {
+        window.parent.postMessage({ action: 'nextEpisodeClicked' }, '*');
       }
     });
   }
@@ -96,4 +152,106 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
       break;
   }
   return true; // Keep the message channel open for asynchronous response
+});
+
+// ... existing code ...
+const hoverStyle = document.createElement('style');
+hoverStyle.innerHTML = '*:hover { outline: 2px solid blue !important; }';
+
+// Function to start element selection
+function startElementSelection() {
+    document.body.style.cursor = 'crosshair';
+    document.head.appendChild(hoverStyle);
+
+    document.addEventListener('mouseover', handleMouseOver);
+    document.addEventListener('click', handleClick, true);
+}
+
+// Handle mouse over to highlight elements
+function handleMouseOver(e) {
+    e.stopPropagation();
+    e.preventDefault();
+}
+
+// Handle click to select the element
+function handleClick(e) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const cssSelector = generateSelector(e.target);
+    chrome.storage.sync.set({ 'nextEpisodeSelector': cssSelector }, function() {
+        console.log('Next episode selector saved:', cssSelector);
+    });
+
+    // Cleanup
+    document.body.style.cursor = 'default';
+    document.head.removeChild(hoverStyle);
+    document.removeEventListener('mouseover', handleMouseOver);
+    document.removeEventListener('click', handleClick, true);
+}
+
+// Function to generate CSS selector (this is a simple version)
+function getCssSelector(element) {
+    if (element.id) {
+        return '#' + element.id;
+    } else {
+        // Implement more complex logic to generate a CSS selector
+        // or use a library like `css-selector-generator`
+        return element.tagName.toLowerCase();
+    }
+}
+
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+    if (request.action === "startSelection") {
+        startElementSelection();
+    }
+});
+
+// ... existing code ...
+
+function generateSelector(context) {
+  let index, pathSelector, localName;
+
+  if (context == "null") throw "not an dom reference";
+  // call getIndex function
+  index = getIndex(context);
+
+  while (context.tagName) {
+    // selector path
+    pathSelector = context.localName + (pathSelector ? ">" + pathSelector : "");
+    context = context.parentNode;
+  }
+  // selector path for nth of type
+  pathSelector = pathSelector + `:nth-of-type(${index})`;
+  return pathSelector;
+}
+
+// get index for nth of type element
+function getIndex(node) {
+  let i = 1;
+  let tagName = node.tagName;
+
+  while (node.previousSibling) {
+    node = node.previousSibling;
+    if (
+      node.nodeType === 1 &&
+      tagName.toLowerCase() == node.tagName.toLowerCase()
+    ) {
+      i++;
+    }
+  }
+  return i;
+}
+
+// load document
+document.addEventListener("DOMContentLoaded", () => {
+  // click on element to get output
+  document.body.addEventListener("click", (e) => {
+    // selector output
+    let output = generateSelector(e.target);
+
+    // element that you select
+    let element = document.querySelector(output);
+    console.log("Selected Element:", element);
+  });
 });
