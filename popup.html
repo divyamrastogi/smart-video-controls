@@ -26,6 +26,42 @@
             text-align: left;
         }
 
+        .shortcuts-info {
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-top: 1em;
+            margin-bottom: 1em;
+        }
+
+        .shortcuts-info p {
+            margin-top: 0;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .shortcuts-info ul {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0 0;
+        }
+
+        .shortcuts-info li {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .shortcut-key {
+            background-color: #e7e9ed;
+            color: #333;
+            font-family: monospace;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
         .status {
             padding: 10px;
             margin-bottom: 15px;
@@ -91,7 +127,7 @@
             width: 20px;
         }
 
-        .check-video-button {
+        .button {
             background-color: #4CAF50;
             /* Green background */
             color: white;
@@ -111,7 +147,7 @@
             border: 1px solid #4CAF50;
         }
 
-        .check-video-button:hover {
+        .button:hover {
             background-color: white;
             color: #4CAF50;
         }
@@ -132,7 +168,7 @@
         <div id="status" class="status inactive">Checking status...</div>
         <div class="buttons-container">
 
-            <button id="playPauseButton" class="control-button">
+            <button id="playPauseButton" class="control-button" title="Play/Pause">
                 <!-- Combined SVG for Play and Pause Icons -->
                 <svg viewBox="0 0 24 24">
                     <!-- Play Icon (Initially visible) -->
@@ -147,7 +183,7 @@
 
 
             <!-- Rewind Button -->
-            <button id="rewindButton" class="control-button">
+            <button id="rewindButton" class="control-button" title="Rewind 10s">
                 <!-- SVG for Rewind Icon -->
                 <svg viewBox="0 0 24 24">
                     <path d="M20 18l-8.5-6L20 6v12zM10 6H8v12h2z" />
@@ -155,20 +191,41 @@
             </button>
 
             <!-- Skip Ahead Button -->
-            <button id="skipAheadButton" class="control-button">
+            <button id="skipAheadButton" class="control-button" title="Forward 10s">
                 <!-- SVG for Forward Icon -->
                 <svg viewBox="0 0 24 24">
                     <path d="M4 18l8.5-6L4 6v12zM14 6h2v12h-2z" />
                 </svg>
             </button>
-            <button class="check-video-button" id="checkVideoButton">Check Video Status</button>
+            <button class="check-video-button button" id="checkVideoButton" title="Refreshes status of the video">Check
+                Video Status</button>
         </div>
-        <div id="details" class="shortcut-description"></div>
+        <!-- Shortcuts Info -->
+        <div class="shortcuts-info">
+            <p>Maximize your viewing experience with these keyboard shortcuts:</p>
+            <ul>
+                <li><span class="shortcut-key">&#8997;/Alt</span> + <span class="shortcut-key">&#8594;</span>: Skip
+                    Forward 30
+                    seconds</li>
+                <li><span class="shortcut-key">&#8997;/Alt</span> + <span class="shortcut-key">&#8592;</span>: Rewind 30
+                    seconds
+                </li>
+                <li><span class="shortcut-key">&#8997;/Alt</span> + <span class="shortcut-key">P</span>: Previous Episode
+                </li>
+                <li><span class="shortcut-key">&#8997;/Alt</span> + <span class="shortcut-key">N</span>: Next Episode
+                </li>
+            </ul>
+        </div>
+        <div class="buttons-container">
+            <button class="button" id="configureButton"
+                title="Select the element you want clicked when you press Alt/Opt + N">
+                Configure Next Episode
+            </button>
+        </div>
         <h4>
             Pssst... We will also resume your videos from your last saved position!
         </h4>
     </div>
-    <button id="configureButton">Configure Next Button Action</button>
     <script src="popup.js"></script>
 </body>
 
