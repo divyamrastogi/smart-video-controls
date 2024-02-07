@@ -9,11 +9,9 @@ function setupVideoControlShortcuts() {
       if (inIframe()) {
         const video = document.querySelectorAll("video")[0];
         if (e.code === "ArrowRight") {
-          alert(`control forward 30s`);
           video.currentTime += 30; // Skip forward 30 seconds
           e.stopImmediatePropagation();
         } else if (e.code === "ArrowLeft") {
-          alert(`control rewind 30s`);
           video.currentTime -= 30; // Rewind 30 seconds
           e.stopImmediatePropagation();
         } else if (e.code === "KeyN") {

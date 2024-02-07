@@ -59,7 +59,6 @@ function setupVideoListeners(msg) {
   video.addEventListener("pause", saveVideoTime);
   window.addEventListener("beforeunload", saveVideoTime);
   window.addEventListener("message", function (event) {
-    alert(`content ${event.data.action} 30s`);
     if (event.data.type === "video-control") {
       if (event.data.action === "forward") {
         video.currentTime += 30;
