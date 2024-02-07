@@ -90,6 +90,17 @@
             color: #721c24;
             /* Darker reddish text */
         }
+        #playIcon, #pauseIcon {
+            display: none;
+        }
+
+        .status-playing ~ .buttons-container #pauseIcon{
+            display: block;
+        }
+
+        .status-paused ~ .buttons-container #playIcon{
+            display: block;
+        }
 
         .inactive {
             background-color: #f8d7da;
@@ -174,7 +185,7 @@
                     <!-- Play Icon (Initially visible) -->
                     <path d="M8 5v14l11-7z" id="playIcon" />
                     <!-- Pause Icon (Initially hidden) -->
-                    <g id="pauseIcon" style="display: none;">
+                    <g id="pauseIcon">
                         <rect x="6" y="5" width="4" height="14" />
                         <rect x="14" y="5" width="4" height="14" />
                     </g>
@@ -210,14 +221,19 @@
                 <li><span class="shortcut-key">&#8997;/Alt</span> + <span class="shortcut-key">&#8592;</span>: Rewind 30
                     seconds
                 </li>
-                <li><span class="shortcut-key">&#8997;/Alt</span> + <span class="shortcut-key">P</span>: Previous Episode
+                <li><span class="shortcut-key">&#8997;/Alt</span> + <span class="shortcut-key">P</span>: Previous
+                    Episode
                 </li>
                 <li><span class="shortcut-key">&#8997;/Alt</span> + <span class="shortcut-key">N</span>: Next Episode
                 </li>
             </ul>
         </div>
         <div class="buttons-container">
-            <button class="button" id="configureButton"
+            <button class="button" id="configurePrevButton"
+                title="Select the element you want clicked when you press Alt/Opt + P">
+                Configure Previous Episode
+            </button>
+            <button class="button" id="configureNextButton"
                 title="Select the element you want clicked when you press Alt/Opt + N">
                 Configure Next Episode
             </button>

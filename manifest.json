@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Smart Video Player - Add keyboard shortcuts to your web videos",
-  "version": "1.4",
+  "name": "Smart Video - Keyboard shortcuts for videos",
+  "version": "1.5",
   "permissions": ["activeTab", "scripting", "storage"],
   "action": {
     "default_popup": "popup.html",
@@ -17,7 +17,15 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": [
+        "utilityFunctions.js",
+        "iframeHandler.js",
+        "navigationHandler.js",
+        "videoControlShortcuts.js",
+        "elementSelection.js",
+        "content.js"
+      ],
+      "run_at": "document_idle",
       "all_frames": true
     }
   ],
