@@ -20,6 +20,14 @@ function handleRuntimeMessages() {
       case "rewind":
         video.currentTime -= 5;
         break;
+      case "speedDown":
+        video.defaultPlaybackRate -= 0.1;
+        video.play();
+        break;
+      case "speedUp":
+        video.defaultPlaybackRate += 0.1;
+        video.play();
+        break;
       case "checkVideoStatus":
         const videoExists = video != null;
         const isPlaying = videoExists && !video.paused;

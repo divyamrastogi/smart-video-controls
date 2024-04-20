@@ -23,6 +23,14 @@ document.addEventListener("DOMContentLoaded", function () {
       sendMessageToContentScript({ action: "rewind" });
     });
 
+  document.getElementById("speedUp").addEventListener("click", function () {
+    sendMessageToContentScript({ action: "speedUp" });
+  });
+
+  document.getElementById("speedDown").addEventListener("click", function () {
+    sendMessageToContentScript({ action: "speedDown" });
+  });
+
   // document
   //   .getElementById("nextEpisodeButton")
   //   .addEventListener("click", function () {

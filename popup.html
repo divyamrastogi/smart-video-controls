@@ -90,15 +90,17 @@
             color: #721c24;
             /* Darker reddish text */
         }
-        #playIcon, #pauseIcon {
+
+        #playIcon,
+        #pauseIcon {
             display: none;
         }
 
-        .status-playing ~ .buttons-container #pauseIcon{
+        .status-playing~.buttons-container #pauseIcon {
             display: block;
         }
 
-        .status-paused ~ .buttons-container #playIcon{
+        .status-paused~.buttons-container #playIcon {
             display: block;
         }
 
@@ -192,10 +194,16 @@
                 </svg>
             </button>
 
+            <button id="speedDown" class="control-button" title="Slow down">
+                <svg viewBox="0 0 24 24">
+                    <path d="M20 18l-8.5-6L20 6v12zM10 6H8v12h2z" />
+                    <path d="M10 18l-8.5-6L10 6v12z" />
+                </svg>
+            </button>
 
             <!-- Rewind Button -->
             <button id="rewindButton" class="control-button" title="Rewind 10s">
-                <!-- SVG for Rewind Icon -->
+                <!-- SVG for Skip back Icon -->
                 <svg viewBox="0 0 24 24">
                     <path d="M20 18l-8.5-6L20 6v12zM10 6H8v12h2z" />
                 </svg>
@@ -203,13 +211,24 @@
 
             <!-- Skip Ahead Button -->
             <button id="skipAheadButton" class="control-button" title="Forward 10s">
-                <!-- SVG for Forward Icon -->
+                <!-- SVG for skip ahead Icon -->
                 <svg viewBox="0 0 24 24">
                     <path d="M4 18l8.5-6L4 6v12zM14 6h2v12h-2z" />
                 </svg>
             </button>
+
+            <button id="speedUp" class="control-button" title="Speed up">
+                <svg viewBox="0 0 24 24">
+                    <path d="M4 18l8.5-6L4 6v12zM14 6h2v12h-2z" />
+                    <path d="M14 18l8.5-6L14 6v12z" />
+                </svg>
+            </button>
+
+        </div>
+        <div class="buttons-container">
             <button class="check-video-button button" id="checkVideoButton" title="Refreshes status of the video">Check
-                Video Status</button>
+                Video Status
+            </button>
         </div>
         <!-- Shortcuts Info -->
         <div class="shortcuts-info">
