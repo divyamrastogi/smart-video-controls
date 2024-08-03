@@ -1,6 +1,6 @@
 # Smart Video Controls Chrome Extension
 
-Smart Video Controls is a Chrome Extension designed to enhance your video viewing experience by allowing you to seamlessly resume videos from where you left off and navigate easily with intuitive keyboard shortcuts.
+Enhance your video viewing experience by navigating easily with intuitive keyboard shortcuts and seamlessly resuming internet videos from where you left off.
 
 ## Features
 
