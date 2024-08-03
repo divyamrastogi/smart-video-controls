@@ -1,6 +1,6 @@
-# SmartVidResume Chrome Extension
+# Smart Video Controls Chrome Extension
 
-SmartVidResume is a Chrome Extension designed to enhance your video viewing experience by allowing you to seamlessly resume videos from where you left off and navigate easily with intuitive keyboard shortcuts.
+Smart Video Controls is a Chrome Extension designed to enhance your video viewing experience by allowing you to seamlessly resume videos from where you left off and navigate easily with intuitive keyboard shortcuts.
 
 ## Features
 
@@ -11,7 +11,7 @@ SmartVidResume is a Chrome Extension designed to enhance your video viewing expe
 
 ## Installation
 
-1. Download the SmartVidResume extension from the GitHub.
+1. Download the Smart Video Controls extension from the GitHub.
 2. Add it to your Chrome browser- go to chrome://extensions in your address bar.
 3. Load the unpacked package and use!
 
@@ -20,8 +20,8 @@ SmartVidResume is a Chrome Extension designed to enhance your video viewing expe
 ### Resuming a Video
 
 1. Play any video on a supported website.
-2. If you leave the video or close the tab, SmartVidResume saves your last position.
-3. Upon returning to the same video, SmartVidResume automatically resumes from where you left off.
+2. If you leave the video or close the tab, Smart Video Controls saves your last position.
+3. Upon returning to the same video, Smart Video Controls automatically resumes from where you left off.
 
 ### Using Video Control Shortcuts
 
