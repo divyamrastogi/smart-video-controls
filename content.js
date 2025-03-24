@@ -40,34 +40,63 @@ function handleRuntimeMessages() {
 function setupVideoListeners(msg) {
   // your existing setup code...
   const video = document.querySelector("video");
-  if (!video) return;
-
-  // Load the saved timestamp
-  chrome.storage.local.get([window.location.href], function (result) {
-    if (result[window.location.href]) {
-      const data = result[window.location.href];
-      video.currentTime = data.timestamp - 2; // Start 2 seconds earlier
-      console.log(
-        `Resuming video from ${data.timestamp}s, last played on ${data.lastPlayed}`
-      );
-    }
-  });
-
-  // Save timestamp when video is paused or page is unloaded
-  function saveVideoTime() {
-    console.log(`Saving video time!`);
-    chrome.storage.local.set({
-      [window.location.href]: {
-        timestamp: video.currentTime,
-        lastPlayed: new Date().toISOString(),
-      },
-    });
+  if (!video) {
+    console.log("[DEBUG] [content.js] No video found on page");
+    return;
   }
 
-  video.addEventListener("pause", saveVideoTime);
-  window.addEventListener("beforeunload", saveVideoTime);
+  console.log("[DEBUG] [content.js] Setting up video listeners for direct video");
+
+  // Use the VideoPositionManager to handle saving/loading positions if available
+  if (window.VideoPositionManager) {
+    console.log("[DEBUG] [content.js] VideoPositionManager detected, using it for playback position");
+    try {
+      window.VideoPositionManager.trackVideo(video);
+      console.log("[DEBUG] [content.js] Using VideoPositionManager for direct video position tracking");
+    } catch (error) {
+      console.error(`[DEBUG] [content.js] Error using VideoPositionManager: ${error}`);
+      useFallbackMethod();
+    }
+  } else {
+    console.warn("[DEBUG] [content.js] VideoPositionManager not available, using fallback method");
+    useFallbackMethod();
+  }
+
+  function useFallbackMethod() {
+    // Load the saved timestamp
+    console.log(`[DEBUG] [content.js] Using fallback key: ${window.location.href}`);
+    chrome.storage.local.get([window.location.href], function (result) {
+      if (result[window.location.href]) {
+        const data = result[window.location.href];
+        video.currentTime = data.timestamp - 2; // Start 2 seconds earlier
+        console.log(
+          `[DEBUG] [content.js] Resuming video from ${data.timestamp}s, last played on ${data.lastPlayed}`
+        );
+      } else {
+        console.log(`[DEBUG] [content.js] No saved position found for key: ${window.location.href}`);
+      }
+    });
+
+    // Save timestamp when video is paused or page is unloaded
+    function saveVideoTime() {
+      console.log(`[DEBUG] [content.js] Saving video time: ${video.currentTime}s`);
+      chrome.storage.local.set({
+        [window.location.href]: {
+          timestamp: video.currentTime,
+          duration: video.duration,
+          lastPlayed: new Date().toISOString(),
+        },
+      });
+    }
+
+    video.addEventListener("pause", saveVideoTime);
+    window.addEventListener("beforeunload", saveVideoTime);
+  }
+
+  // Listen for messages from parent page
   window.addEventListener("message", function (event) {
     if (event.data.type === "video-control") {
+      console.log(`[DEBUG] [content.js] Received video control message: ${event.data.action}`);
       if (event.data.action === "forward") {
         video.currentTime += 30;
       } else if (event.data.action === "rewind") {

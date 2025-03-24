@@ -75,8 +75,13 @@ function checkVideoStatus() {
       tabs[0].id,
       { action: "checkVideoStatus" },
       function (response) {
-        if (response && response.videoExists) {
+        if (response) {
           updatePopup(response);
+        } else {
+          // Handle missing response case
+          const statusDiv = document.getElementById("status");
+          statusDiv.className = "status status-error";
+          statusDiv.textContent = "Could not connect to video controller";
         }
       }
     );
@@ -87,7 +92,14 @@ function updatePopup(response) {
   const statusDiv = document.getElementById("status");
 
   if (response && response.videoExists) {
-    let statusText = "Video is " + (response.isPlaying ? "playing" : "paused");
+    let statusText;
+    
+    if (response.source === "iframe") {
+      statusText = "Video in iframe is " + (response.isPlaying ? "playing" : "paused");
+    } else {
+      statusText = "Video is " + (response.isPlaying ? "playing" : "paused");
+    }
+    
     statusDiv.textContent = statusText;
 
     // Update the class based on playing status
@@ -96,9 +108,16 @@ function updatePopup(response) {
     } else {
       statusDiv.className = "status status-paused";
     }
+  } else if (response && response.commandSent) {
+    // For iframe commands that return only a "commandSent" status
+    statusDiv.textContent = "Command sent to video";
+    statusDiv.className = "status status-pending";
+    
+    // Check status again after a short delay to see if command worked
+    setTimeout(checkVideoStatus, 500);
   } else {
     statusDiv.className = "status status-inactive";
-    statusDiv.textContent = "No videos found";
+    statusDiv.textContent = response ? response.reason || "No videos found" : "No videos found";
   }
 }
 
@@ -106,6 +125,13 @@ function updatePopup(response) {
 
 function sendMessageToContentScript(message) {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    chrome.tabs.sendMessage(tabs[0].id, message);
+    console.log("Sending command to tab:", message.action);
+    chrome.tabs.sendMessage(tabs[0].id, message, function(response) {
+      if (response) {
+        console.log("Command response:", response);
+        // Update UI with the response
+        updatePopup(response);
+      }
+    });
   });
 }
