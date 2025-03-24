@@ -10,13 +10,14 @@ window.VisualLogger = window.VisualLogger || {};
 // Global variables
 let logContainer = null;
 let isMinimized = false;
-let maxLogEntries = 100;
+let maxLogEntries = 1000;
 let isInitialized = false;
 let originalConsoleLog = console.log;
 let originalConsoleError = console.error;
 let originalConsoleWarn = console.warn;
 let originalConsoleInfo = console.info;
 let originalConsoleDebug = console.debug;
+let logEjectionNotified = false;
 
 /**
  * Check if the current script is running in an iframe
@@ -79,13 +80,35 @@ function createLoggerUI() {
     border-bottom: 1px solid #555;
   `;
   
-  // Add title
+  // Add title with log count indicator
+  const titleWrapper = document.createElement('div');
+  titleWrapper.style.cssText = `
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  `;
+  
   const title = document.createElement('div');
   title.textContent = 'Smart Video Debug Logs';
   title.style.cssText = `
     font-weight: bold;
     user-select: none;
   `;
+  
+  // Add log count indicator
+  const logCount = document.createElement('div');
+  logCount.id = 'log-entry-count';
+  logCount.textContent = '0 entries';
+  logCount.style.cssText = `
+    font-size: 10px;
+    color: #999;
+    padding: 1px 5px;
+    border-radius: 10px;
+    background: #222;
+  `;
+  
+  titleWrapper.appendChild(title);
+  titleWrapper.appendChild(logCount);
   
   // Add controls
   const controls = document.createElement('div');
@@ -118,6 +141,21 @@ function createLoggerUI() {
   `;
   copyBtn.onclick = copyLogs;
   
+  // Trim button
+  const trimBtn = document.createElement('button');
+  trimBtn.textContent = 'Trim';
+  trimBtn.style.cssText = `
+    margin-right: 5px;
+    background: #444;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 2px 5px;
+    cursor: pointer;
+  `;
+  trimBtn.onclick = trimLogs;
+  trimBtn.title = "Reduce logs to 20% of capacity to save memory";
+  
   // Toggle button
   const toggleBtn = document.createElement('button');
   toggleBtn.textContent = '−';
@@ -133,9 +171,10 @@ function createLoggerUI() {
   
   controls.appendChild(clearBtn);
   controls.appendChild(copyBtn);
+  controls.appendChild(trimBtn);
   controls.appendChild(toggleBtn);
   
-  header.appendChild(title);
+  header.appendChild(titleWrapper);
   header.appendChild(controls);
   
   // Create log content area
@@ -267,6 +306,12 @@ function clearLogs() {
   if (logContent) {
     logContent.innerHTML = '';
     addLogEntry('Logs cleared', 'info');
+    
+    // Reset log ejection notification flag
+    logEjectionNotified = false;
+    
+    // Update log count
+    updateLogCount(1); // Just the "Logs cleared" entry
   }
 }
 
@@ -337,9 +382,70 @@ function addLogEntry(message, type = 'debug') {
   // Auto-scroll to bottom
   logContent.scrollTop = logContent.scrollHeight;
   
-  // Limit log entries
-  while (logContent.children.length > maxLogEntries) {
-    logContent.removeChild(logContent.firstChild);
+  // Update log count indicator
+  updateLogCount(logContent.children.length);
+  
+  // Efficient log entry limiting
+  const currentCount = logContent.children.length;
+  
+  if (currentCount > maxLogEntries) {
+    // Implement batch removal for better performance - remove 10% when limit is reached
+    const entriesToRemove = Math.ceil(maxLogEntries * 0.1); // Remove oldest 10% 
+    
+    // Remove the oldest entries in a batch
+    for (let i = 0; i < entriesToRemove; i++) {
+      if (logContent.firstChild) {
+        logContent.removeChild(logContent.firstChild);
+      }
+    }
+    
+    // Update log count after removal
+    updateLogCount(logContent.children.length);
+    
+    // Show notification about log ejection (only once)
+    if (!logEjectionNotified) {
+      const notificationEntry = document.createElement('div');
+      notificationEntry.style.cssText = `
+        margin: 2px 0;
+        border-bottom: 1px dotted #333;
+        word-wrap: break-word;
+        color: #ff9900;
+        font-style: italic;
+      `;
+      notificationEntry.innerHTML = `<span style="color: #999;">[${timestamp}]</span> Removed ${entriesToRemove} oldest log entries to prevent memory issues`;
+      logContent.appendChild(notificationEntry);
+      logEjectionNotified = true;
+      
+      // Reset notification flag after some time
+      setTimeout(() => { logEjectionNotified = false; }, 60000); // Reset after 1 minute
+      
+      // Update counter again after adding notification
+      updateLogCount(logContent.children.length);
+    }
+  }
+}
+
+/**
+ * Update the log entry count display
+ * @param {number} count - Current number of log entries
+ */
+function updateLogCount(count) {
+  const countElement = document.getElementById('log-entry-count');
+  if (countElement) {
+    // Format the count and add a warning color if getting close to limit
+    countElement.textContent = `${count} / ${maxLogEntries} entries`;
+    
+    // Change color based on how full the log is
+    if (count > maxLogEntries * 0.9) {
+      // Over 90% - red
+      countElement.style.color = '#ff5555';
+    } else if (count > maxLogEntries * 0.7) {
+      // Over 70% - yellow
+      countElement.style.color = '#ffff00';
+    } else {
+      // Normal - gray
+      countElement.style.color = '#999';
+    }
   }
 }
 
@@ -422,6 +528,82 @@ function overrideConsoleMethods() {
 }
 
 /**
+ * Show the visual logger
+ */
+function showLogger() {
+  if (isInIframe()) return; // Don't show in iframe
+  
+  if (logContainer) {
+    logContainer.style.display = 'block';
+    addLogEntry('Visual logger shown', 'info');
+  } else {
+    // If container doesn't exist yet, create it and then show it
+    createLoggerUI();
+  }
+}
+
+/**
+ * Hide the visual logger but keep collecting logs
+ */
+function hideLogger() {
+  if (isInIframe()) return; // Already not showing in iframe
+  
+  if (logContainer) {
+    logContainer.style.display = 'none';
+    // Still log the action, even though it won't be visible
+    console.log('[DEBUG] Visual logger hidden (logs still being collected)');
+  }
+}
+
+/**
+ * Check if logs are consuming too much memory and trim if needed
+ * This runs periodically to prevent memory leaks
+ */
+function checkMemoryUsage() {
+  const logContent = document.getElementById('smart-video-log-content');
+  if (!logContent) return;
+  
+  const currentCount = logContent.children.length;
+  
+  // If we're approaching the limit (90%), consider trimming
+  if (currentCount > maxLogEntries * 0.9) {
+    // Check approximate memory usage of logs
+    const avgEntrySize = estimateLogEntrySize(logContent);
+    const totalSize = avgEntrySize * currentCount;
+    
+    // If total size is over 5MB, trim logs
+    const MEMORY_THRESHOLD = 5 * 1024 * 1024; // 5MB
+    if (totalSize > MEMORY_THRESHOLD) {
+      trimLogs();
+    }
+  }
+}
+
+/**
+ * Estimate the size of log entries in bytes
+ * @param {HTMLElement} logContent - The log content element
+ * @returns {number} - Estimated average size per entry in bytes
+ */
+function estimateLogEntrySize(logContent) {
+  // Sample up to 10 entries to get an average size
+  const sampleSize = Math.min(10, logContent.children.length);
+  let totalLength = 0;
+  
+  if (sampleSize === 0) return 0;
+  
+  for (let i = 0; i < sampleSize; i++) {
+    // Get a random entry to sample
+    const index = Math.floor(Math.random() * logContent.children.length);
+    const entry = logContent.children[index];
+    // Estimate size based on innerHTML length (2 bytes per character for UTF-16)
+    totalLength += entry.innerHTML.length * 2;
+  }
+  
+  // Return average size per entry in bytes
+  return totalLength / sampleSize;
+}
+
+/**
  * Initialize the visual logger
  */
 function initVisualLogger() {
@@ -451,9 +633,29 @@ function initVisualLogger() {
         const container = document.getElementById('smart-video-log-container');
         if (container) {
           container.style.display = container.style.display === 'none' ? 'block' : 'none';
+          
+          // Save visibility state to storage
+          if (chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({ 
+              visualLoggerVisible: container.style.display !== 'none' 
+            });
+          }
         }
       }
     });
+    
+    // Check initial visibility state from storage
+    if (chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['visualLoggerVisible'], function(result) {
+        const shouldBeVisible = result.visualLoggerVisible === true;
+        if (logContainer) {
+          logContainer.style.display = shouldBeVisible ? 'block' : 'none';
+        }
+      });
+    }
+    
+    // Set up periodic memory check (every 30 seconds)
+    setInterval(checkMemoryUsage, 30000);
   }
   
   isInitialized = true;
@@ -514,6 +716,52 @@ function copyLogs() {
   document.body.removeChild(textarea);
 }
 
+/**
+ * Trim logs to a safer size when memory concerns arise
+ * Reduces the number of logs to 20% of maximum capacity
+ */
+function trimLogs() {
+  const logContent = document.getElementById('smart-video-log-content');
+  if (!logContent) return;
+  
+  const currentCount = logContent.children.length;
+  const targetCount = Math.floor(maxLogEntries * 0.2); // Reduce to 20% capacity
+  
+  if (currentCount <= targetCount) return; // Already below target
+  
+  const entriesToRemove = currentCount - targetCount;
+  
+  // Add a notification at the top about trimming
+  const now = new Date();
+  const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+  
+  // Remove the oldest entries in a batch
+  for (let i = 0; i < entriesToRemove; i++) {
+    if (logContent.firstChild) {
+      logContent.removeChild(logContent.firstChild);
+    }
+  }
+  
+  // Add notification about major trim
+  const notificationEntry = document.createElement('div');
+  notificationEntry.style.cssText = `
+    margin: 2px 0;
+    border-bottom: 1px dotted #333;
+    word-wrap: break-word;
+    color: #ff5555;
+    font-weight: bold;
+    background-color: rgba(255, 0, 0, 0.1);
+    padding: 3px;
+  `;
+  notificationEntry.innerHTML = `<span style="color: #999;">[${timestamp}]</span> MEMORY OPTIMIZATION: Removed ${entriesToRemove} log entries to free up memory`;
+  logContent.appendChild(notificationEntry);
+  
+  // Update log count after massive trim
+  updateLogCount(logContent.children.length);
+  
+  return entriesToRemove;
+}
+
 // Expose methods to global namespace
 window.VisualLogger = {
   init: initVisualLogger,
@@ -521,5 +769,8 @@ window.VisualLogger = {
   clear: clearLogs,
   copy: copyLogs,
   toggle: toggleMinimize,
-  isInIframe: isInIframe
+  isInIframe: isInIframe,
+  show: showLogger,
+  hide: hideLogger,
+  trim: trimLogs
 }; 

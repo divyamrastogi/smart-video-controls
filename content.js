@@ -6,7 +6,39 @@ function handleRuntimeMessages() {
     sendResponse
   ) {
     const video = document.querySelector("video");
-    if (!video) return;
+    
+    // Handle visual logger commands that don't need a video
+    if (request.action === "toggleVisualLogger") {
+      if (window.VisualLogger) {
+        if (request.visible) {
+          // Make logger visible
+          window.VisualLogger.show();
+        } else {
+          // Hide logger but keep collecting logs
+          window.VisualLogger.hide();
+        }
+        sendResponse({ success: true, visible: request.visible });
+      } else {
+        sendResponse({ success: false, reason: "Visual logger not available" });
+      }
+      return true;
+    }
+    
+    if (request.action === "clearVisualLogs") {
+      if (window.VisualLogger) {
+        window.VisualLogger.clear();
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, reason: "Visual logger not available" });
+      }
+      return true;
+    }
+    
+    // Handle video-specific commands
+    if (!video && request.action !== "checkVideoStatus") {
+      sendResponse({ success: false, reason: "No video found" });
+      return true;
+    }
 
     switch (request.action) {
       case "togglePlayPause":
