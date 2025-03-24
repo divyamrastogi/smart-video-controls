@@ -146,64 +146,43 @@ async function getParentPageUrl() {
 }
 
 /**
- * Generate a unique key for the video, including parent page URL
- * @param {HTMLVideoElement} video - The video element
- * @returns {Promise<string>} Promise that resolves to the unique key
+ * Generate a unique key for storing the video position
+ * @param {HTMLVideoElement} videoElement - The video element
+ * @returns {string} The generated key
  */
-async function generateVideoKey(video) {
-  // Get a selector to uniquely identify this video among others on the page
-  const videoSelector = generateSelector(video);
-  logDebug(`Generated video selector: ${videoSelector}`, 'debug');
-  
-  // Get the parent page URL (works in both iframe and direct contexts)
-  const parentUrl = await getParentPageUrl();
-  
-  // Extract important parts of the URL for the key
+function generateVideoKey(videoElement) {
   try {
-    const url = new URL(parentUrl);
+    // Check if we're in an iframe
+    const isIframe = window !== window.top;
     
-    // Check if we have a meaningful path (not just /)
-    const hasPath = url.pathname && url.pathname !== '/';
+    // Get parent page URL (either from top window or current window)
+    let parentUrl;
     
-    // If we have a path, use the full URL (domain + path)
-    // Otherwise, just use the domain
-    let stableUrl;
-    if (hasPath) {
-      // Clean the URL by removing any hash fragments but keeping the path and important query params
-      stableUrl = `${url.origin}${url.pathname}`;
-      
-      // Add important query parameters related to video identification
-      const params = new URLSearchParams(url.search);
-      const importantParams = [];
-      
-      ['v', 'id', 'video', 'vid', 'movie', 'episode'].forEach(param => {
-        if (params.has(param)) {
-          importantParams.push(`${param}=${params.get(param)}`);
-        }
-      });
-      
-      if (importantParams.length > 0) {
-        stableUrl += '?' + importantParams.join('&');
+    if (isIframe) {
+      try {
+        // Try to access parent URL (may fail due to cross-origin)
+        parentUrl = window.parent.location.href;
+      } catch (e) {
+        // Fallback to referrer or document URL if parent URL access fails
+        parentUrl = document.referrer || window.location.href;
+        logDebug(`Using referrer as parent URL: ${parentUrl}`, 'debug');
       }
-      
-      logDebug(`Using full URL with path for key: ${stableUrl}`, 'info');
     } else {
-      // No meaningful path, just use the domain
-      stableUrl = url.origin;
-      logDebug(`URL has no path, using origin: ${stableUrl}`, 'warn');
+      // We're in the top window
+      parentUrl = window.location.href;
     }
     
-    // Create a key using the stable URL representation and video selector
-    const key = `${stableUrl}#${videoSelector}`;
-    logDebug(`Generated video position key: ${key}`, 'info');
+    // Clean the URL by removing any hash fragments
+    const url = new URL(parentUrl);
+    url.hash = '';
+    const cleanUrl = url.toString();
     
-    return key;
+    logDebug(`Generated video position key: ${cleanUrl}`, 'info');
+    return cleanUrl;
   } catch (e) {
-    // Fallback to using the full URL if parsing fails
-    logDebug(`Error parsing URL, using full URL as key: ${e}`, 'warn');
-    const key = `${parentUrl}#${videoSelector}`;
-    logDebug(`Generated fallback video position key: ${key}`, 'info');
-    return key;
+    // Fall back to document URL if anything fails
+    logDebug(`Error generating key: ${e.message}, falling back to document URL`, 'error');
+    return window.location.href;
   }
 }
 
@@ -260,112 +239,100 @@ function hashString(str) {
 }
 
 /**
- * Save the current playback position of a video
- * @param {HTMLVideoElement} video - The video element
+ * Save the current video position to storage
+ * @param {HTMLVideoElement} videoElement - The video element
+ * @returns {Promise<void>}
  */
-async function saveVideoPosition(video) {
-  if (!video) {
-    logDebug('No video element provided to saveVideoPosition', 'warn');
+async function saveVideoPosition(videoElement) {
+  // Don't save if the video is at the beginning or near the end
+  if (!videoElement || 
+      !videoElement.currentTime || 
+      videoElement.currentTime < 5 || 
+      (videoElement.duration && videoElement.currentTime > videoElement.duration - 10)) {
+    logDebug('Not saving position: video is at beginning or end', 'debug');
     return;
   }
   
-  try {
-    // Generate the key asynchronously
-    const videoKey = await generateVideoKey(video);
-    const currentTime = video.currentTime;
-    
-    // Only save if we have a valid time (not 0, not NaN)
-    if (currentTime > 0 && !isNaN(currentTime)) {
-      logDebug(`Saving video position: ${currentTime.toFixed(1)}s for key: ${videoKey}`, 'info');
-      
-      const dataToStore = {
-        timestamp: currentTime,
-        duration: video.duration,
-        lastPlayed: new Date().toISOString(),
-      };
-      
-      // Store in Chrome storage
-      chrome.storage.local.set({
-        [videoKey]: dataToStore
-      }, function() {
-        if (chrome.runtime.lastError) {
-          logDebug(`Storage error: ${chrome.runtime.lastError.message}`, 'error');
-        } else {
-          logDebug(`Successfully saved position ${currentTime.toFixed(1)}s to storage`, 'debug');
-        }
-      });
-    } else {
-      logDebug(`Not saving invalid position: ${currentTime}`, 'warn');
-    }
-  } catch (error) {
-    logDebug(`Error saving video position: ${error}`, 'error');
-  }
+  // Generate the key for this video
+  const videoKey = generateVideoKey(videoElement);
+  
+  // Save the video position data
+  const positionData = {
+    currentTime: videoElement.currentTime,
+    duration: videoElement.duration || 0,
+    lastPlayed: new Date().toISOString()
+  };
+  
+  logDebug(`Saving position: ${videoKey} - Time: ${positionData.currentTime}/${positionData.duration}`, 'info');
+  
+  return new Promise((resolve) => {
+    chrome.storage.local.set({
+      [videoKey]: positionData
+    }, function() {
+      if (chrome.runtime.lastError) {
+        logDebug(`Error saving position: ${chrome.runtime.lastError.message}`, 'error');
+      } else {
+        logDebug(`Position saved successfully`, 'debug');
+      }
+      resolve();
+    });
+  });
 }
 
 /**
- * Load the saved playback position for a video
- * @param {HTMLVideoElement} video - The video element
+ * Load the saved video position from storage
+ * @param {HTMLVideoElement} videoElement - The video element
+ * @returns {Promise<boolean>} Whether position was loaded successfully
  */
-async function loadVideoPosition(video) {
-  if (!video) {
-    logDebug('No video element provided to loadVideoPosition', 'warn');
-    return;
+async function loadVideoPosition(videoElement) {
+  if (!videoElement) {
+    logDebug('Cannot load position: No video element provided', 'error');
+    return false;
   }
   
-  try {
-    // Generate the key asynchronously
-    const videoKey = await generateVideoKey(video);
-    logDebug(`Looking up saved position for key: ${videoKey}`, 'info');
-    
-    // Retrieve from Chrome storage
-    chrome.storage.local.get([videoKey], async function (result) {
+  // Generate the key for this video
+  const videoKey = generateVideoKey(videoElement);
+  
+  return new Promise((resolve) => {
+    chrome.storage.local.get([videoKey], async function(result) {
       if (chrome.runtime.lastError) {
-        logDebug(`Storage retrieval error: ${chrome.runtime.lastError.message}`, 'error');
+        logDebug(`Error loading position: ${chrome.runtime.lastError.message}`, 'error');
+        resolve(false);
         return;
       }
       
-      if (result[videoKey]) {
-        const data = result[videoKey];
-        logDebug(`Found saved data: ${JSON.stringify(data)}`, 'info');
+      // Check if we have a saved position
+      const savedPosition = result[videoKey];
+      
+      if (savedPosition) {
+        logDebug(`Found saved position: ${JSON.stringify(savedPosition)}`, 'info');
         
-        // Only resume if we have a valid saved position
-        if (data.timestamp > 0 && !isNaN(data.timestamp)) {
-          // Start 2 seconds earlier for context
-          const resumeTime = Math.max(0, data.timestamp - 2);
-          
-          // Don't resume if we're near the end of the video
-          if (data.duration && data.timestamp > data.duration - 10) {
-            logDebug(`Video was near the end (${data.timestamp.toFixed(1)}/${data.duration.toFixed(1)}), starting from beginning`, 'info');
-            return;
-          }
-          
-          // Set the time
-          logDebug(`Setting video.currentTime to ${resumeTime.toFixed(1)}s (saved pos: ${data.timestamp.toFixed(1)}s)`, 'debug');
-          video.currentTime = resumeTime;
-          logDebug(
-            `Resumed video from ${resumeTime.toFixed(1)}s (saved: ${data.timestamp.toFixed(1)}s), last played on ${data.lastPlayed}`,
-            'info'
-          );
+        // Only restore if the video isn't already playing
+        // and if we have valid time data
+        if (savedPosition.currentTime > 0 && 
+            (!videoElement.currentTime || videoElement.currentTime < 5)) {
+          // Set the current time
+          videoElement.currentTime = savedPosition.currentTime;
+          logDebug(`Restored video to position: ${savedPosition.currentTime}`, 'info');
+          resolve(true);
         } else {
-          logDebug(`Saved position ${data.timestamp} is invalid, not resuming`, 'warn');
+          logDebug(`Video already has position (${videoElement.currentTime}), not restoring`, 'debug');
+          resolve(false);
         }
       } else {
-        logDebug(`No saved position found for key: ${videoKey}`, 'info');
-        
-        // Try to migrate from old key format
+        // No saved position found with new key, try to migrate from old format
         const migrated = await migrateOldPositions(videoKey);
+        
         if (migrated) {
-          logDebug(`Migrated from old key format, reloading position`, 'info');
-          // Reload with the migrated position
-          loadVideoPosition(video);
+          // Retry loading with the migrated data
+          return loadVideoPosition(videoElement).then(resolve);
         } else {
-          logDebug(`No migration performed or needed`, 'debug');
+          logDebug('No saved position found', 'debug');
+          resolve(false);
         }
       }
     });
-  } catch (error) {
-    logDebug(`Error loading video position: ${error}`, 'error');
-  }
+  });
 }
 
 /**
@@ -586,62 +553,70 @@ function initVideoPositionManager() {
 
 /**
  * Try to migrate old position keys to new format
- * @param {string} videoKey - The new format key
+ * @param {string} newKey - The new format key
  * @returns {Promise<boolean>} Whether migration was successful
  */
-async function migrateOldPositions(videoKey) {
+async function migrateOldPositions(newKey) {
   return new Promise((resolve) => {
     try {
-      // Parse the new key to get components
-      const [url, videoSelector] = videoKey.split('#');
-      const parsedUrl = new URL(url);
+      // Parse the URL from the new key
+      const url = new URL(newKey);
       
-      // Create the old style key (domain only)
-      const oldKey = `${parsedUrl.origin}#${videoSelector}`;
+      // Create potential old style keys to check
+      const possibleOldKeys = [];
       
-      // Only try migration if old and new keys are different
-      if (oldKey === videoKey) {
-        resolve(false);
-        return;
-      }
-      
-      logDebug(`Attempting to migrate from old key: ${oldKey} to new key: ${videoKey}`, 'info');
-      
-      // Check if we have data under the old key
-      chrome.storage.local.get([oldKey], function(result) {
+      // Check for old keys with hash video selectors
+      chrome.storage.local.get(null, function(items) {
         if (chrome.runtime.lastError) {
-          logDebug(`Error checking old key: ${chrome.runtime.lastError.message}`, 'error');
+          logDebug(`Error checking old keys: ${chrome.runtime.lastError.message}`, 'error');
           resolve(false);
           return;
         }
         
-        if (result[oldKey]) {
-          const data = result[oldKey];
-          logDebug(`Found position under old key: ${JSON.stringify(data)}`, 'info');
-          
-          // Store under the new key
-          chrome.storage.local.set({
-            [videoKey]: data
-          }, function() {
-            if (chrome.runtime.lastError) {
-              logDebug(`Error migrating position: ${chrome.runtime.lastError.message}`, 'error');
-              resolve(false);
-            } else {
-              logDebug(`Successfully migrated position to new key format`, 'info');
-              
-              // Remove the old key
-              chrome.storage.local.remove([oldKey], function() {
-                if (chrome.runtime.lastError) {
-                  logDebug(`Error removing old key: ${chrome.runtime.lastError.message}`, 'warn');
-                }
-                resolve(true);
-              });
-            }
-          });
-        } else {
-          logDebug(`No data found under old key, nothing to migrate`, 'debug');
+        // Find keys that start with our base URL
+        const baseUrl = url.origin + url.pathname;
+        const matchingKeys = Object.keys(items).filter(key => 
+          key.startsWith(baseUrl + '#') || // Same URL with hash
+          key.startsWith(url.origin + '#') // Just domain with hash
+        );
+        
+        if (matchingKeys.length === 0) {
+          logDebug(`No old format keys found to migrate`, 'debug');
           resolve(false);
+          return;
         }
+        
+        logDebug(`Found ${matchingKeys.length} potential old format key(s) to migrate`, 'info');
+        
+        // Get the most recent old key to migrate
+        let mostRecentKey = matchingKeys[0];
+        let mostRecentTime = new Date(items[mostRecentKey].lastPlayed || 0);
+        
+        for (let i = 1; i < matchingKeys.length; i++) {
+          const key = matchingKeys[i];
+          const time = new Date(items[key].lastPlayed || 0);
+          if (time > mostRecentTime) {
+            mostRecentKey = key;
+            mostRecentTime = time;
+          }
+        }
+        
+        // Migrate the most recent position
+        const data = items[mostRecentKey];
+        logDebug(`Migrating position from key: ${mostRecentKey} to ${newKey}`, 'info');
+        
+        // Store under the new key
+        chrome.storage.local.set({
+          [newKey]: data
+        }, function() {
+          if (chrome.runtime.lastError) {
+            logDebug(`Error migrating position: ${chrome.runtime.lastError.message}`, 'error');
+            resolve(false);
+          } else {
+            logDebug(`Successfully migrated position from old key to new format`, 'info');
+            resolve(true);
+          }
+        });
       });
     } catch (e) {
       logDebug(`Error in migration attempt: ${e}`, 'error');
@@ -650,14 +625,79 @@ async function migrateOldPositions(videoKey) {
   });
 }
 
-// Export functions to the window object
-window.VideoPositionManager = {
-  setup: initVideoPositionManager,
-  savePosition: saveVideoPosition,
-  loadPosition: loadVideoPosition,
-  trackVideo: setupVideoPositionTracking,
-  getParentPageUrl: getParentPageUrl,
-  debugListPositions: debugListAllPositions,
-  migratePositions: migrateOldPositions,
-  setupParentMessaging: setupParentUrlMessaging
-}; 
+// Export the VideoPositionManager functionalities
+const VideoPositionManager = {
+  setup: function(video) {
+    return setupVideoPositionTracking(video);
+  },
+  save: function(video) {
+    return saveVideoPosition(video);
+  },
+  load: function(video) {
+    return loadVideoPosition(video);
+  },
+  getKey: function(video) {
+    return generateVideoKey(video);
+  },
+  debug: {
+    // Debug functions
+    getStoredPositions: async function() {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(null, function(items) {
+          if (chrome.runtime.lastError) {
+            logDebug(`Error retrieving positions: ${chrome.runtime.lastError.message}`, 'error');
+            resolve({});
+            return;
+          }
+          
+          // Filter for keys that look like URLs
+          const positions = {};
+          for (const key in items) {
+            if (key.startsWith('http')) {
+              positions[key] = items[key];
+            }
+          }
+          
+          resolve(positions);
+        });
+      });
+    },
+    clearAllPositions: async function() {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(null, function(items) {
+          if (chrome.runtime.lastError) {
+            logDebug(`Error retrieving positions: ${chrome.runtime.lastError.message}`, 'error');
+            resolve(false);
+            return;
+          }
+          
+          // Filter for keys that look like URLs
+          const keys = Object.keys(items).filter(key => key.startsWith('http'));
+          
+          if (keys.length === 0) {
+            logDebug('No video positions to clear', 'info');
+            resolve(false);
+            return;
+          }
+          
+          chrome.storage.local.remove(keys, function() {
+            if (chrome.runtime.lastError) {
+              logDebug(`Error clearing positions: ${chrome.runtime.lastError.message}`, 'error');
+              resolve(false);
+            } else {
+              logDebug(`Cleared ${keys.length} video positions`, 'info');
+              resolve(true);
+            }
+          });
+        });
+      });
+    }
+  }
+};
+
+// Export to window for debugging
+if (typeof window !== 'undefined') {
+  window.VideoPositionManager = VideoPositionManager;
+}
+
+export default VideoPositionManager; 

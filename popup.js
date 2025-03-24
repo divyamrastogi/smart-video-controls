@@ -31,31 +31,11 @@ document.addEventListener("DOMContentLoaded", function () {
     sendMessageToContentScript({ action: "speedDown" });
   });
 
-  // Visual debugger toggle setup
-  const debugToggle = document.getElementById("debugToggle");
-  const debugStatus = document.getElementById("debugStatus");
-  
-  // Initialize toggle state from storage
-  chrome.storage.local.get(["visualLoggerVisible"], function(result) {
-    const isVisible = result.visualLoggerVisible === true;
-    debugToggle.checked = isVisible;
-    debugStatus.textContent = isVisible ? "On" : "Off";
-  });
-  
-  // Handle toggle changes
-  debugToggle.addEventListener("change", function() {
-    const isVisible = debugToggle.checked;
-    debugStatus.textContent = isVisible ? "On" : "Off";
-    
-    // Save state to storage
-    chrome.storage.local.set({ visualLoggerVisible: isVisible });
-    
-    // Send message to content script to toggle logger visibility
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        action: "toggleVisualLogger",
-        visible: isVisible
-      });
+  // Visual debugger setup - ensure it's always on
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    chrome.tabs.sendMessage(tabs[0].id, {
+      action: "toggleVisualLogger",
+      visible: true
     });
   });
   
