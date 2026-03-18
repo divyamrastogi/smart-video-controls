@@ -1,30 +1,46 @@
 // content.js
 
+// Debug mode is OFF by default. Enable via window.SmartVideoControls.enableDebug()
+// or via the popup's "Toggle Debug Logger" button. Does NOT persist across page loads.
+let debugEnabled = false;
+
 /**
- * Log a debug message
+ * Log a debug message — no-op unless debug mode is enabled
  * @param {string} message - The message to log
  * @param {string} level - Log level: 'debug', 'info', 'warn', 'error'
  */
 function logDebug(message, level = 'debug') {
-  // Get timestamp
+  if (!debugEnabled) return;
+
   const now = new Date();
   const timestamp = now.toTimeString().split(' ')[0] + '.' + now.getMilliseconds().toString().padStart(3, '0');
-  
-  // Format message with timestamp and content script identifier
   const formattedMessage = `[${timestamp}] [content.js] ${message}`;
-  
-  // Log to visual logger if available
+
   if (window.VisualLogger) {
     try {
       window.VisualLogger.log(formattedMessage, level);
     } catch (e) {
-      // Fallback to console if visual logger fails
       console[level](formattedMessage);
     }
   } else {
-    // Fallback to console
     console[level](formattedMessage);
   }
+}
+
+function enableDebug() {
+  debugEnabled = true;
+  if (window.VisualLogger) {
+    window.VisualLogger.show();
+  }
+  console.log('[SmartVideoControls] Debug mode enabled. Call SmartVideoControls.disableDebug() to turn off.');
+}
+
+function disableDebug() {
+  debugEnabled = false;
+  if (window.VisualLogger) {
+    window.VisualLogger.hide();
+  }
+  console.log('[SmartVideoControls] Debug mode disabled.');
 }
 
 function handleRuntimeMessages(request, sender, sendResponse) {
@@ -32,17 +48,21 @@ function handleRuntimeMessages(request, sender, sendResponse) {
   
   // Handle visual logger actions
   if (request.action === 'toggleVisualLogger') {
-    // Always show the visual logger regardless of request.visible value
     try {
-      if (window.VisualLogger) {
-        window.VisualLogger.show();
-        sendResponse({ success: true, status: 'Visual logger is now visible' });
+      if (debugEnabled) {
+        disableDebug();
       } else {
-        sendResponse({ success: false, error: 'Visual logger not available' });
+        enableDebug();
       }
+      sendResponse({ success: true, debugEnabled: debugEnabled });
     } catch (error) {
-      sendResponse({ success: false, error: `Error toggling visual logger: ${error.message}` });
+      sendResponse({ success: false, error: `Error toggling debug logger: ${error.message}` });
     }
+    return true;
+  }
+
+  if (request.action === 'getDebugState') {
+    sendResponse({ success: true, debugEnabled: debugEnabled });
     return true;
   }
   
@@ -472,5 +492,10 @@ setupVideoListeners();
     subtree: true
   });
   
-  logDebug('Content script initialized successfully', 'info');
+  // Expose developer API — no logging here, debug is off by default
+  window.SmartVideoControls = {
+    enableDebug: enableDebug,
+    disableDebug: disableDebug,
+    isDebugEnabled: () => debugEnabled
+  };
 })();

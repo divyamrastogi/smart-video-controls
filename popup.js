@@ -31,20 +31,26 @@ document.addEventListener("DOMContentLoaded", function () {
     sendMessageToContentScript({ action: "speedDown" });
   });
 
-  // Visual debugger setup - ensure it's always on
+  // Query current debug state and initialize button label
   chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-    chrome.tabs.sendMessage(tabs[0].id, {
-      action: "toggleVisualLogger",
-      visible: true
+    chrome.tabs.sendMessage(tabs[0].id, { action: "getDebugState" }, function(response) {
+      updateDebugButton(response && response.debugEnabled);
     });
   });
-  
+
+  // Toggle debug logger button
+  document.getElementById("toggleLoggerButton").addEventListener("click", function() {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      chrome.tabs.sendMessage(tabs[0].id, { action: "toggleVisualLogger" }, function(response) {
+        updateDebugButton(response && response.debugEnabled);
+      });
+    });
+  });
+
   // Clear logs button
   document.getElementById("clearLogsButton").addEventListener("click", function() {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        action: "clearVisualLogs"
-      });
+      chrome.tabs.sendMessage(tabs[0].id, { action: "clearVisualLogs" });
     });
   });
 
@@ -127,6 +133,14 @@ function updatePopup(response) {
 }
 
 // ... existing event listener for DOMContentLoaded ...
+
+function updateDebugButton(isEnabled) {
+  const btn = document.getElementById("toggleLoggerButton");
+  if (!btn) return;
+  btn.textContent = isEnabled ? "Disable Debug Logger" : "Enable Debug Logger";
+  btn.style.backgroundColor = isEnabled ? "#d9534f" : "#4CAF50";
+  btn.style.borderColor = isEnabled ? "#d9534f" : "#4CAF50";
+}
 
 function sendMessageToContentScript(message) {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
