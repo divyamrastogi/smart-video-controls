@@ -1,6 +1,4 @@
-chrome.action.onClicked.addListener((tab) => {
-  chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    files: ["content.js"],
-  });
+// Smart Video Controls - Background Service Worker
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('[SVC] Smart Video Controls v2.0 installed');
 });
