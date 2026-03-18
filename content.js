@@ -1,476 +1,381 @@
-// content.js
-
 /**
- * Log a debug message
- * @param {string} message - The message to log
- * @param {string} level - Log level: 'debug', 'info', 'warn', 'error'
+ * Smart Video Controls - Content Script
+ * Runs in ALL frames (parent pages and cross-origin iframes).
+ *
+ * Architecture:
+ *  - Keyboard shortcuts are handled directly in whichever frame has focus.
+ *  - When the parent page has keyboard focus, commands are forwarded to iframes
+ *    via postMessage (works across cross-origin boundaries).
+ *  - Videos are detected via MutationObserver so dynamically added videos
+ *    (e.g. after clicking "play" on animepahe) are tracked automatically.
+ *  - Playback position is saved to chrome.storage.local and restored on return.
  */
-function logDebug(message, level = 'debug') {
-  // Get timestamp
-  const now = new Date();
-  const timestamp = now.toTimeString().split(' ')[0] + '.' + now.getMilliseconds().toString().padStart(3, '0');
-  
-  // Format message with timestamp and content script identifier
-  const formattedMessage = `[${timestamp}] [content.js] ${message}`;
-  
-  // Log to visual logger if available
-  if (window.VisualLogger) {
-    try {
-      window.VisualLogger.log(formattedMessage, level);
-    } catch (e) {
-      // Fallback to console if visual logger fails
-      console[level](formattedMessage);
-    }
-  } else {
-    // Fallback to console
-    console[level](formattedMessage);
-  }
-}
+(function () {
+  'use strict';
 
-function handleRuntimeMessages(request, sender, sendResponse) {
-  logDebug(`Received message: ${request.action}`, 'info');
-  
-  // Handle visual logger actions
-  if (request.action === 'toggleVisualLogger') {
-    // Always show the visual logger regardless of request.visible value
-    try {
-      if (window.VisualLogger) {
-        window.VisualLogger.show();
-        sendResponse({ success: true, status: 'Visual logger is now visible' });
-      } else {
-        sendResponse({ success: false, error: 'Visual logger not available' });
-      }
-    } catch (error) {
-      sendResponse({ success: false, error: `Error toggling visual logger: ${error.message}` });
+  // ── Constants ────────────────────────────────────────────────────────────────
+
+  const IS_IFRAME = window !== window.top;
+  const SVC_COMMAND_MSG = 'svc-command';
+  const SHORTCUTS_KEY = 'svc_shortcuts';
+  const LOGGER_KEY = 'svc_logger_visible';
+  const SKIP_SEC = 10;
+  const VOL_STEP = 0.1;
+  const SPEED_STEP = 0.25;
+
+  const DEFAULT_SHORTCUTS = {
+    playPause:   { key: ' ',          label: 'Space' },
+    skipForward: { key: 'ArrowRight', label: '→'     },
+    skipBack:    { key: 'ArrowLeft',  label: '←'     },
+    volumeUp:    { key: 'ArrowUp',    label: '↑'     },
+    volumeDown:  { key: 'ArrowDown',  label: '↓'     },
+    speedUp:     { key: '>',          label: '>'     },
+    speedDown:   { key: '<',          label: '<'     },
+  };
+
+  // ── State ────────────────────────────────────────────────────────────────────
+
+  let shortcuts = Object.assign({}, DEFAULT_SHORTCUTS);
+  let trackedVideo = null;
+  let saveTimer = null;
+
+  // ── Position storage ─────────────────────────────────────────────────────────
+
+  function getPositionKey() {
+    const url = location.href.replace(/#.*$/, '');
+    if (IS_IFRAME) {
+      const parent = (document.referrer || 'unknown').replace(/#.*$/, '');
+      return 'svc_pos::' + parent + '::' + url;
     }
-    return true;
+    return 'svc_pos::' + url;
   }
-  
-  if (request.action === 'clearVisualLogs') {
-    try {
-      if (window.VisualLogger) {
-        window.VisualLogger.clear();
-        sendResponse({ success: true, status: 'Visual logs cleared' });
-      } else {
-        sendResponse({ success: false, error: 'Visual logger not available' });
-      }
-    } catch (error) {
-      sendResponse({ success: false, error: `Error clearing logs: ${error.message}` });
-    }
-    return true;
-  }
-  
-  // Handle debugging actions
-  if (request.action === 'checkVideoStatus') {
-    logDebug('Checking video status', 'info');
-    
-    let videos = document.querySelectorAll('video');
-    let iframes = document.querySelectorAll('iframe');
-    let response = {
-      success: true,
-      directVideos: videos.length,
-      iframes: iframes.length,
-      details: []
-    };
-    
-    // Get details of direct videos
-    videos.forEach((video, index) => {
-      let key = '';
-      try {
-        if (window.VideoPositionManager) {
-          key = window.VideoPositionManager.getKey(video);
-        }
-      } catch (e) {
-        logDebug(`Error getting video key: ${e}`, 'error');
-      }
-      
-      response.details.push({
-        type: 'direct',
-        index: index,
+
+  function savePosition(video) {
+    if (!video || !video.isConnected || video.currentTime < 2) return;
+    const key = getPositionKey();
+    chrome.storage.local.set({
+      [key]: {
+        currentTime: video.currentTime,
         duration: video.duration || 0,
-        currentTime: video.currentTime || 0,
-        paused: video.paused,
-        ended: video.ended,
-        muted: video.muted,
-        volume: video.volume,
-        playbackRate: video.playbackRate,
-        positionKey: key
-      });
+        savedAt: Date.now(),
+      },
     });
-    
-    // Log iframe sources
-    iframes.forEach((iframe, index) => {
-      response.details.push({
-        type: 'iframe',
-        index: index,
-        src: iframe.src
-      });
+    svcLog('Saved ' + video.currentTime.toFixed(1) + 's');
+  }
+
+  function restorePosition(video) {
+    const key = getPositionKey();
+    chrome.storage.local.get(key, (result) => {
+      const saved = result[key];
+      if (!saved || saved.currentTime < 2) return;
+      // Don't restore near the end
+      if (saved.duration > 0 && saved.currentTime > saved.duration - 15) return;
+      // Don't restore saves older than 30 days
+      if (Date.now() - saved.savedAt > 30 * 24 * 60 * 60 * 1000) return;
+
+      svcLog('Restoring to ' + saved.currentTime.toFixed(1) + 's');
+      const seek = () => { video.currentTime = saved.currentTime; };
+      if (video.readyState >= 1) {
+        seek();
+      } else {
+        video.addEventListener('loadedmetadata', seek, { once: true });
+      }
     });
-    
-    logDebug(`Video status check complete: ${JSON.stringify(response)}`, 'info');
-    sendResponse(response);
+  }
+
+  // ── Video tracking ───────────────────────────────────────────────────────────
+
+  function trackVideo(video) {
+    if (video._svcTracked) return;
+    video._svcTracked = true;
+    video.dataset.svcTracked = '1'; // visible from main world (dataset is shared between worlds)
+    trackedVideo = video;
+    svcLog('Tracking video');
+
+    restorePosition(video);
+
+    video.addEventListener('ended', () => savePosition(video));
+
+    // Save on pause
+    video.addEventListener('pause', () => {
+      savePosition(video);
+      clearInterval(saveTimer);
+      saveTimer = null;
+    });
+
+    // Save every 10s while playing
+    video.addEventListener('play', () => {
+      if (saveTimer) return;
+      saveTimer = setInterval(() => {
+        if (trackedVideo && !trackedVideo.paused) savePosition(trackedVideo);
+      }, 10000);
+    });
+  }
+
+  function getActiveVideo() {
+    if (trackedVideo && trackedVideo.isConnected) return trackedVideo;
+    const all = document.querySelectorAll('video');
+    for (const v of all) {
+      if (!v.paused || v.readyState > 0) return v;
+    }
+    return all[0] || null;
+  }
+
+  // ── Commands ─────────────────────────────────────────────────────────────────
+
+  function applyCommand(action) {
+    const video = getActiveVideo();
+    if (!video) return false;
+
+    switch (action) {
+      case 'playPause':
+        video.paused ? video.play().catch(() => {}) : video.pause();
+        break;
+      case 'skipForward':
+        video.currentTime = Math.min(video.currentTime + SKIP_SEC, video.duration || 1e9);
+        break;
+      case 'skipBack':
+        video.currentTime = Math.max(video.currentTime - SKIP_SEC, 0);
+        break;
+      case 'volumeUp':
+        if (video.muted) {
+          video.muted = false;
+          video.volume = Math.max(video.volume, 0.1);
+        } else {
+          video.volume = Math.min(1, video.volume + VOL_STEP);
+        }
+        break;
+      case 'volumeDown':
+        video.volume = Math.max(0, video.volume - VOL_STEP);
+        if (video.volume < 0.01) video.muted = true;
+        break;
+      case 'speedUp':
+        video.playbackRate = Math.min(4, +(video.playbackRate + SPEED_STEP).toFixed(2));
+        break;
+      case 'speedDown':
+        video.playbackRate = Math.max(0.25, +(video.playbackRate - SPEED_STEP).toFixed(2));
+        break;
+      default:
+        return false;
+    }
+
+    svcLog(action + ' → t=' + (video.currentTime || 0).toFixed(1) + 's');
     return true;
   }
-  
-  // Handle video control actions
-  if (request.action === 'playPause' || 
-      request.action === 'skipAhead' || 
-      request.action === 'rewind' || 
-      request.action === 'speedUp' || 
-      request.action === 'speedDown') {
-    
-    logDebug(`Processing video control action: ${request.action}`, 'info');
-    
-    // First try to control direct videos
-    let directVideosControlled = false;
-    
-    try {
-      const videos = document.querySelectorAll('video');
-      if (videos && videos.length > 0) {
-        directVideosControlled = true;
-        
-        videos.forEach((video, index) => {
-          logDebug(`Controlling direct video #${index} with action: ${request.action}`, 'info');
-          
-          switch (request.action) {
-            case 'playPause':
-              if (video.paused) {
-                video.play();
-                logDebug(`Video #${index} played`, 'info');
-              } else {
-                video.pause();
-                // Save position when pausing
-                if (window.VideoPositionManager) {
-                  window.VideoPositionManager.save(video);
-                }
-                logDebug(`Video #${index} paused`, 'info');
-              }
-              break;
-              
-            case 'skipAhead':
-              video.currentTime += 30;
-              logDebug(`Video #${index} skipped ahead to ${video.currentTime}`, 'info');
-              break;
-              
-            case 'rewind':
-              video.currentTime -= 10;
-              logDebug(`Video #${index} rewound to ${video.currentTime}`, 'info');
-              break;
-              
-            case 'speedUp':
-              video.playbackRate = Math.min(3, video.playbackRate + 0.25);
-              logDebug(`Video #${index} speed increased to ${video.playbackRate}x`, 'info');
-              break;
-              
-            case 'speedDown':
-              video.playbackRate = Math.max(0.25, video.playbackRate - 0.25);
-              logDebug(`Video #${index} speed decreased to ${video.playbackRate}x`, 'info');
-              break;
-          }
-        });
-      }
-    } catch (error) {
-      logDebug(`Error controlling direct videos: ${error}`, 'error');
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────────────────
+
+  function findAction(event) {
+    for (const [action, def] of Object.entries(shortcuts)) {
+      if (event.key === def.key) return action;
     }
-    
-    // Then try to send messages to videos in iframes
-    try {
-      const iframes = document.querySelectorAll('iframe');
-      if (iframes && iframes.length > 0) {
-        logDebug(`Sending ${request.action} to ${iframes.length} iframes`, 'info');
-        
-        iframes.forEach((iframe, index) => {
-          try {
-            iframe.contentWindow.postMessage({
-              type: 'video-control',
-              action: request.action
-            }, '*');
-            logDebug(`Sent ${request.action} to iframe #${index}`, 'debug');
-          } catch (error) {
-            logDebug(`Error sending message to iframe #${index}: ${error}`, 'error');
-          }
-        });
-      }
-    } catch (error) {
-      logDebug(`Error sending messages to iframes: ${error}`, 'error');
-    }
-    
-    sendResponse({ 
-      success: true, 
-      directVideosControlled: directVideosControlled
+    return null;
+  }
+
+  function forwardToIframes(action) {
+    const iframes = document.querySelectorAll('iframe');
+    iframes.forEach((iframe) => {
+      try {
+        // postMessage works even for cross-origin iframes
+        iframe.contentWindow.postMessage({ type: SVC_COMMAND_MSG, action }, '*');
+      } catch (_) {}
     });
-    return true;
+    return iframes.length > 0;
   }
-}
 
-function setupVideoListeners() {
-  // Log when we start setting up listeners
-  logDebug('Setting up video listeners in content script', 'info');
-  
-  // Find any videos on the page
-  const videos = document.querySelectorAll('video');
-  
-  if (!videos || videos.length === 0) {
-    logDebug('No videos found on page', 'info');
-    return;
+  document.addEventListener('keydown', (event) => {
+    // Never capture keys typed into inputs
+    const tag = event.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target.isContentEditable) return;
+
+    const action = findAction(event);
+    if (!action) return;
+
+    const video = getActiveVideo();
+    if (video) {
+      event.preventDefault();
+      event.stopPropagation();
+      applyCommand(action);
+    } else if (!IS_IFRAME) {
+      // No video on this page — forward shortcut to iframes
+      const hadIframes = forwardToIframes(action);
+      if (hadIframes) event.preventDefault();
+    }
+  }, /* capture */ true);
+
+  // ── postMessage: receive commands from parent ────────────────────────────────
+
+  window.addEventListener('message', (event) => {
+    if (!event.data || event.data.type !== SVC_COMMAND_MSG) return;
+    applyCommand(event.data.action);
+  });
+
+  // ── MutationObserver: detect dynamically added videos ────────────────────────
+
+  function scanForVideos() {
+    document.querySelectorAll('video').forEach(trackVideo);
   }
-  
-  logDebug(`Found ${videos.length} videos on page`, 'info');
-  
-  // Check if we have VideoPositionManager available
-  let videoPositionManager = null;
-  try {
-    if (typeof VideoPositionManager !== 'undefined') {
-      videoPositionManager = VideoPositionManager;
-      logDebug('VideoPositionManager detected, will use for position tracking', 'info');
-    } else {
-      logDebug('VideoPositionManager not available, will use fallback method', 'warn');
-    }
-  } catch (error) {
-    logDebug(`Error checking for VideoPositionManager: ${error}`, 'error');
-  }
-  
-  // Set up listeners for each video
-  videos.forEach((video, index) => {
-    logDebug(`Setting up listeners for video #${index}`, 'debug');
-    
-    // Track video position if available
-    if (videoPositionManager) {
-      try {
-        // Set up position tracking
-        videoPositionManager.setup(video);
-        
-        // Generate and log the key being used
-        const key = videoPositionManager.getKey(video);
-        logDebug(`Video position key: ${key}`, 'info');
-        
-        // Try to load saved position
-        videoPositionManager.load(video)
-          .then(loaded => {
-            if (loaded) {
-              logDebug(`Loaded saved position for video #${index}`, 'info');
-            } else {
-              logDebug(`No saved position found for video #${index}`, 'debug');
-            }
-          })
-          .catch(err => {
-            logDebug(`Error loading video position: ${err}`, 'error');
-          });
-      } catch (error) {
-        logDebug(`Error setting up position tracking: ${error}`, 'error');
-        
-        // Fall back to using URL-based storage if position manager fails
-        setupFallbackPositionTracking(video, index);
-      }
-    } else {
-      // Use fallback position tracking if no manager available
-      setupFallbackPositionTracking(video, index);
-    }
-    
-    // Set up standard video event listeners
-    setupVideoEventListeners(video, index);
-  });
-}
 
-// Fallback method to track video position using local storage
-function setupFallbackPositionTracking(video, index) {
-  logDebug(`Using fallback position tracking for video #${index}`, 'info');
-  
-  // Generate a key using the current URL
-  const storageKey = `video-position-${window.location.href}`;
-  logDebug(`Fallback storage key: ${storageKey}`, 'debug');
-  
-  // Load saved position
-  try {
-    const savedPosition = localStorage.getItem(storageKey);
-    if (savedPosition) {
-      const position = JSON.parse(savedPosition);
-      logDebug(`Found saved position: ${position.time}`, 'info');
-      
-      // If position is valid and we're not already playing, set it
-      if (position.time > 0 && (!video.currentTime || video.currentTime < 3)) {
-        video.currentTime = position.time;
-        logDebug(`Restored video to position: ${position.time}`, 'info');
-      }
-    }
-  } catch (error) {
-    logDebug(`Error loading saved position: ${error}`, 'error');
-  }
-  
-  // Save position periodically
-  const saveInterval = setInterval(() => {
-    if (video.currentTime > 0 && !video.paused) {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify({
-          time: video.currentTime,
-          duration: video.duration,
-          saved: new Date().toISOString()
-        }));
-        logDebug(`Saved current time (${video.currentTime}) to key: ${storageKey}`, 'debug');
-      } catch (error) {
-        logDebug(`Error saving position: ${error}`, 'error');
-      }
-    }
-  }, 5000);
-  
-  // Clean up interval when video is removed
-  video.addEventListener('remove', () => {
-    clearInterval(saveInterval);
-  });
-}
-
-// Set up standard video event listeners
-function setupVideoEventListeners(video, index) {
-  // Add standard video controls
-  video.addEventListener('play', () => {
-    logDebug(`Video #${index} started playing`, 'debug');
-  });
-  
-  video.addEventListener('pause', () => {
-    logDebug(`Video #${index} paused`, 'debug');
-    
-    // Save position on pause if VideoPositionManager is available
-    if (typeof VideoPositionManager !== 'undefined') {
-      try {
-        VideoPositionManager.save(video);
-      } catch (error) {
-        logDebug(`Error saving position on pause: ${error}`, 'error');
-      }
-    }
-  });
-  
-  video.addEventListener('ended', () => {
-    logDebug(`Video #${index} ended`, 'debug');
-  });
-}
-
-// Check if the script is running inside an iframe
-if (inIframe()) {
   const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      const addedNodes = mutation.addedNodes;
-
-      for (const node of addedNodes) {
-        if (node.tagName === "VIDEO") {
-          setupVideoListeners(); // Pass the added video node directly
-        }
-      }
-    });
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
-} else {
-  handleIframeLoad();
-  setupEpisodeNavigationListener();
-}
-
-setupVideoListeners();
-
-// Initialize content script
-(function() {
-  logDebug('Content script initializing', 'info');
-  
-  // Set up message listener for extension communications
-  chrome.runtime.onMessage.addListener(handleRuntimeMessages);
-  
-  // Set up video listeners for direct videos
-  setupVideoListeners();
-  
-  // Handle window messages (for cross-frame communication)
-  window.addEventListener('message', function(event) {
-    // Validate message
-    if (!event.data || event.data.type !== 'video-control') {
-      return;
-    }
-    
-    logDebug(`Received window message: ${JSON.stringify(event.data)}`, 'info');
-    
-    // Process video control message from iframe or parent
-    if (event.data.action) {
-      try {
-        const videos = document.querySelectorAll('video');
-        if (!videos || videos.length === 0) {
-          logDebug('No videos to control from window message', 'info');
-          return;
-        }
-        
-        // Apply the action to all videos
-        videos.forEach((video, index) => {
-          logDebug(`Applying ${event.data.action} to video #${index} from window message`, 'debug');
-          
-          switch (event.data.action) {
-            case 'playPause':
-            case 'togglePlayPause': // Support old message format
-              if (video.paused) {
-                video.play();
-              } else {
-                video.pause();
-                // Save position when pausing
-                if (window.VideoPositionManager) {
-                  window.VideoPositionManager.save(video);
-                }
-              }
-              break;
-              
-            case 'forward':
-            case 'skipAhead':
-              video.currentTime += 30;
-              break;
-              
-            case 'rewind':
-              video.currentTime -= 10;
-              break;
-              
-            case 'speedUp':
-              video.playbackRate = Math.min(3, video.playbackRate + 0.25);
-              break;
-              
-            case 'speedDown':
-              video.playbackRate = Math.max(0.25, video.playbackRate - 0.25);
-              break;
-          }
-        });
-      } catch (error) {
-        logDebug(`Error processing window message: ${error}`, 'error');
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.tagName === 'VIDEO') { trackVideo(node); continue; }
+        node.querySelectorAll('video').forEach(trackVideo);
       }
     }
   });
-  
-  // Set up a mutation observer to detect dynamically added videos
-  const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      if (mutation.addedNodes.length) {
-        let newVideos = false;
-        
-        mutation.addedNodes.forEach(function(node) {
-          // Check if node is a video
-          if (node.nodeName && node.nodeName.toLowerCase() === 'video') {
-            logDebug('New video element detected', 'info');
-            newVideos = true;
-          } 
-          // Check if node contains videos
-          else if (node.querySelectorAll) {
-            const videos = node.querySelectorAll('video');
-            if (videos.length > 0) {
-              logDebug(`New node contains ${videos.length} videos`, 'info');
-              newVideos = true;
-            }
-          }
+
+  // ── Visual logger (parent frame only) ────────────────────────────────────────
+
+  let logEl = null;
+  let logEntriesEl = null;
+  let logVisible = false;
+
+  function createLogger() {
+    if (IS_IFRAME || logEl) return;
+
+    logEl = document.createElement('div');
+    logEl.id = 'svc-logger';
+    logEl.style.cssText = [
+      'position:fixed', 'bottom:10px', 'right:10px', 'width:380px',
+      'max-height:260px', 'background:rgba(0,0,0,0.88)', 'color:#00e676',
+      'font:11px/1.4 monospace', 'padding:8px 10px', 'border-radius:6px',
+      'border:1px solid #00e676', 'z-index:2147483647', 'display:none',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.6)',
+    ].join(';');
+
+    logEl.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+        '<strong style="color:#fff">SVC Debug</strong>' +
+        '<button id="svc-log-close" style="background:none;border:none;color:#00e676;cursor:pointer;font-size:18px;line-height:1">×</button>' +
+      '</div>' +
+      '<div id="svc-log-entries" style="overflow-y:auto;max-height:200px"></div>';
+
+    document.documentElement.appendChild(logEl);
+    logEntriesEl = logEl.querySelector('#svc-log-entries');
+
+    logEl.querySelector('#svc-log-close').addEventListener('click', () => setLoggerVisible(false));
+
+    // Restore last visibility preference
+    chrome.storage.local.get(LOGGER_KEY, (r) => {
+      if (r[LOGGER_KEY]) setLoggerVisible(true);
+    });
+  }
+
+  function setLoggerVisible(visible) {
+    logVisible = visible;
+    if (logEl) logEl.style.display = visible ? 'block' : 'none';
+    chrome.storage.local.set({ [LOGGER_KEY]: visible });
+  }
+
+  function svcLog(msg) {
+    const ts = new Date().toISOString().substring(11, 23);
+    const ctx = IS_IFRAME ? '[iframe]' : '[top]';
+    const line = '[' + ts + '] ' + ctx + ' ' + msg;
+    console.log('[SVC]', line);
+    if (logEntriesEl && logVisible) {
+      const d = document.createElement('div');
+      d.textContent = line;
+      logEntriesEl.appendChild(d);
+      while (logEntriesEl.children.length > 100) logEntriesEl.firstChild.remove();
+      logEntriesEl.scrollTop = logEntriesEl.scrollHeight;
+    }
+  }
+
+  // ── Extension message handler (from popup) ────────────────────────────────────
+
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (!msg || !msg.type) return false;
+
+    switch (msg.type) {
+      case 'svc-command': {
+        const ok = applyCommand(msg.action);
+        if (!ok && !IS_IFRAME) forwardToIframes(msg.action);
+        sendResponse({ success: true });
+        return false;
+      }
+
+      case 'svc-status': {
+        const video = getActiveVideo();
+        sendResponse({
+          hasVideo: !!video,
+          paused: video ? video.paused : null,
+          currentTime: video ? video.currentTime : null,
+          duration: video ? video.duration : null,
+          volume: video ? video.volume : null,
+          playbackRate: video ? video.playbackRate : null,
+          isIframe: IS_IFRAME,
+          url: location.href,
         });
-        
-        if (newVideos) {
-          logDebug('Setting up listeners for newly added videos', 'info');
-          setupVideoListeners();
+        return false;
+      }
+
+      case 'svc-get-shortcuts': {
+        sendResponse({ shortcuts });
+        return false;
+      }
+
+      case 'svc-set-shortcuts': {
+        shortcuts = Object.assign({}, DEFAULT_SHORTCUTS, msg.shortcuts);
+        chrome.storage.local.set({ [SHORTCUTS_KEY]: shortcuts });
+        sendResponse({ success: true });
+        return false;
+      }
+
+      case 'svc-toggle-logger': {
+        if (!IS_IFRAME) {
+          const next = msg.visible !== undefined ? msg.visible : !logVisible;
+          setLoggerVisible(next);
+          sendResponse({ success: true, visible: next });
+        } else {
+          sendResponse({ success: false });
         }
+        return false;
+      }
+
+      case 'svc-clear-logs': {
+        if (logEntriesEl) logEntriesEl.innerHTML = '';
+        sendResponse({ success: true });
+        return false;
+      }
+    }
+
+    return false;
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────────
+
+  function init() {
+    // Load saved shortcuts
+    chrome.storage.local.get(SHORTCUTS_KEY, (result) => {
+      if (result[SHORTCUTS_KEY]) {
+        shortcuts = Object.assign({}, DEFAULT_SHORTCUTS, result[SHORTCUTS_KEY]);
       }
     });
+
+    // Create debug logger only in the top frame
+    if (!IS_IFRAME) {
+      if (document.body) {
+        createLogger();
+      } else {
+        document.addEventListener('DOMContentLoaded', createLogger, { once: true });
+      }
+    }
+
+    // Find any videos already on the page
+    scanForVideos();
+
+    // Watch for videos added dynamically (e.g. after clicking play)
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+
+    svcLog('Init (' + (IS_IFRAME ? 'iframe' : 'top') + ') ' + location.href.substring(0, 70));
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (trackedVideo) savePosition(trackedVideo);
+    clearInterval(saveTimer);
   });
-  
-  // Start observing the document
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true
-  });
-  
-  logDebug('Content script initialized successfully', 'info');
+
+  init();
 })();

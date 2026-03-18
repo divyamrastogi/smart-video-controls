@@ -1,8 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Smart Video - Keyboard shortcuts for videos",
-  "version": "1.5",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "name": "Smart Video Controls",
+  "version": "2.0",
+  "description": "Keyboard shortcuts for video playback with position memory. Works with iframe-embedded videos.",
+  "permissions": ["storage", "scripting", "activeTab"],
+  "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -17,30 +19,9 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["debuggerOverride.js"],
-      "run_at": "document_start",
-      "all_frames": true
-    },
-    {
-      "matches": ["<all_urls>"],
-      "js": [
-        "utilityFunctions.js",
-        "modules/utilityFunctions.js",
-        "modules/visualLogger.js",
-        "modules/directVideoHandler.js",
-        "modules/videoPreloader.js",
-        "modules/videoPositionManager.js",
-        "modules/iframeVideoHandler.js",
-        "modules/parentPageHandler.js",
-        "modules/videoControlShortcuts.js",
-        "modules/debugHelper.js",
-        "navigationHandler.js",
-        "elementSelection.js",
-        "modules/main.js"
-      ],
+      "js": ["content.js"],
       "run_at": "document_idle",
       "all_frames": true
     }
-  ],
-  "host_permissions": ["<all_urls>"]
+  ]
 }
