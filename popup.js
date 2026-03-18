@@ -112,17 +112,21 @@ async function refreshStatus() {
       '  🔊' + Math.round((found.volume || 1) * 100) + '%';
     statusEl.className = 'has-video';
 
-    // Update play/pause button icon
+    // Update play/pause button icon — use child elements to avoid destroying .label span
     if (playBtn) {
-      playBtn.textContent = found.paused ? '▶' : '⏸';
-      playBtn.querySelector('.label').textContent = found.paused ? 'Play' : 'Pause';
+      const iconEl  = playBtn.querySelector('.icon');
+      const labelEl = playBtn.querySelector('.label');
+      if (iconEl)  iconEl.textContent  = found.paused ? '▶' : '⏸';
+      if (labelEl) labelEl.textContent = found.paused ? 'Play' : 'Pause';
     }
   } else {
     statusEl.textContent = 'No video detected on this page';
     statusEl.className = 'no-video';
     if (playBtn) {
-      playBtn.textContent = '▶';
-      playBtn.querySelector('.label').textContent = 'Play';
+      const iconEl  = playBtn.querySelector('.icon');
+      const labelEl = playBtn.querySelector('.label');
+      if (iconEl)  iconEl.textContent  = '▶';
+      if (labelEl) labelEl.textContent = 'Play';
     }
   }
 }

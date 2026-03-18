@@ -6,216 +6,295 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      font-size: 13px;
-      color: #222;
-      background: #f5f5f5;
-      min-width: 340px;
-      max-width: 380px;
+    :root {
+      --bg:         #0d0d15;
+      --surface:    #13131e;
+      --card:       #1a1a28;
+      --card-hover: #20202f;
+      --border:     #252538;
+      --border-hi:  #353550;
+      --accent:     #7c6bff;
+      --accent-glow:rgba(124,107,255,.22);
+      --accent-dim: rgba(124,107,255,.12);
+      --accent-hi:  #9584ff;
+      --text:       #e2e2f0;
+      --text-2:     #8484aa;
+      --text-3:     #44445a;
+      --playing:    #2dd4a0;
+      --playing-bg: rgba(45,212,160,.1);
+      --paused:     #f87171;
+      --paused-bg:  rgba(248,113,113,.1);
+      --warn:       #fbbf24;
     }
 
-    .header {
-      background: #3a5fa0;
-      color: #fff;
-      padding: 12px 16px;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      width: 390px;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 15px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-logo {
+      width: 30px; height: 30px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 14px var(--accent-glow);
+      flex-shrink: 0;
+    }
+    .header-logo svg { fill: #fff; width: 17px; height: 17px; }
+    .header-name { font-size: 14px; font-weight: 700; letter-spacing: -.02em; }
+    .header-sub  { font-size: 10px; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; }
+
+    /* ── Sections ── */
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 
     .section {
-      background: #fff;
-      margin: 10px;
-      border-radius: 6px;
-      border: 1px solid #e0e0e0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
       overflow: hidden;
     }
 
     .section-title {
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 10px;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: #666;
+      letter-spacing: .08em;
+      color: var(--text-3);
       padding: 8px 12px 6px;
-      border-bottom: 1px solid #f0f0f0;
-      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
     }
 
     /* ── Status ── */
     #status {
       padding: 10px 12px;
-      font-size: 13px;
-      color: #555;
+      font-size: 12px;
+      font-family: 'SF Mono', 'JetBrains Mono', 'Consolas', monospace;
+      color: var(--text-2);
+      transition: color .2s ease, background .2s ease;
     }
-    #status.has-video { color: #1a6e2e; background: #edf7f0; }
-    #status.no-video  { color: #888; }
+    #status.has-video { color: var(--playing); background: var(--playing-bg); }
+    #status.no-video  { color: var(--text-3); }
 
-    /* ── Quick controls ── */
+    /* ── Quick Controls ── */
     .controls {
       display: flex;
       align-items: center;
       justify-content: space-around;
-      padding: 10px 8px;
+      padding: 12px 8px;
+      gap: 4px;
     }
 
     .ctrl-btn {
-      background: none;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      width: 56px; height: 52px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface);
       cursor: pointer;
-      padding: 6px 10px;
-      font-size: 18px;
+      color: var(--text-2);
+      font-size: 19px;
       line-height: 1;
-      color: #3a5fa0;
-      transition: background 0.15s, border-color 0.15s;
-      min-width: 40px;
-      text-align: center;
+      transition: background .12s ease, border-color .12s ease, transform .1s ease;
+      outline: none;
     }
-    .ctrl-btn:hover { background: #eef2fb; border-color: #3a5fa0; }
-    .ctrl-btn:active { background: #d5e0f5; }
-    .ctrl-btn span.label {
-      display: block;
+    .ctrl-btn .label {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       font-size: 9px;
-      color: #888;
-      margin-top: 2px;
+      color: var(--text-3);
+      letter-spacing: .02em;
       font-weight: 500;
-      letter-spacing: 0.3px;
     }
+    .ctrl-btn:hover { background: var(--card-hover); border-color: var(--border-hi); color: var(--text); }
+    .ctrl-btn:active { transform: scale(.91); }
+
+    #playPauseBtn {
+      width: 60px; height: 56px;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-size: 22px;
+      border-radius: 12px;
+      box-shadow: 0 4px 18px var(--accent-glow);
+    }
+    #playPauseBtn .label { color: rgba(255,255,255,.7); }
+    #playPauseBtn:hover { background: var(--accent-hi); border-color: var(--accent-hi); box-shadow: 0 4px 24px var(--accent-glow); }
+    #playPauseBtn:active { transform: scale(.90); background: var(--accent); box-shadow: none; }
 
     /* ── Shortcuts table ── */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+    table { width: 100%; border-collapse: collapse; }
     td {
       padding: 7px 12px;
-      border-bottom: 1px solid #f3f3f3;
+      border-bottom: 1px solid var(--border);
       vertical-align: middle;
     }
     tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--card-hover); }
 
-    .action-name {
-      color: #444;
-      font-size: 12px;
-      width: 50%;
-    }
+    .action-name { color: var(--text-2); font-size: 12px; width: 55%; }
 
     .key-badge {
-      display: inline-block;
-      background: #e8edf5;
-      border: 1px solid #c5cfe0;
-      border-radius: 4px;
-      padding: 2px 7px;
-      font-family: monospace;
-      font-size: 12px;
-      color: #3a5fa0;
-      min-width: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 9px;
+      background: var(--surface);
+      border: 1px solid var(--border-hi);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      font-family: 'SF Mono', 'JetBrains Mono', 'Consolas', monospace;
+      font-size: 11px; font-weight: 600;
+      color: var(--text);
+      min-width: 44px;
       text-align: center;
+      transition: background .15s, border-color .15s, color .15s;
     }
     .key-badge.recording {
-      background: #fff3cd;
-      border-color: #e0a800;
-      color: #856404;
-      animation: blink 0.8s infinite;
+      background: rgba(251,191,36,.1);
+      border-color: var(--warn);
+      color: var(--warn);
+      animation: blink .75s ease-in-out infinite;
     }
-
-    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:.45; } }
 
     .edit-btn {
       background: none;
-      border: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
       cursor: pointer;
-      color: #3a5fa0;
+      color: var(--text-3);
       font-size: 11px;
-      padding: 2px 6px;
-      border-radius: 3px;
-      text-decoration: underline;
-      opacity: 0.7;
+      padding: 3px 8px;
+      transition: border-color .12s, color .12s;
+      outline: none;
     }
-    .edit-btn:hover { opacity: 1; }
+    .edit-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-    .td-right {
-      text-align: right;
-      white-space: nowrap;
-    }
+    .td-right { text-align: right; white-space: nowrap; }
 
-    /* ── Buttons row ── */
+    /* ── Button rows ── */
     .btn-row {
       display: flex;
       gap: 8px;
       padding: 10px 12px;
+      border-top: 1px solid var(--border);
     }
 
     .btn {
       flex: 1;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
       cursor: pointer;
-      padding: 6px 8px;
-      font-size: 12px;
-      color: #444;
-      transition: background 0.15s;
+      padding: 7px 10px;
+      font-size: 12px; font-weight: 500;
+      color: var(--text-2);
+      transition: background .12s, border-color .12s, color .12s;
+      outline: none;
     }
-    .btn:hover { background: #f0f0f0; }
-    .btn.primary { background: #3a5fa0; color: #fff; border-color: #3a5fa0; }
-    .btn.primary:hover { background: #2e4f8a; }
-    .btn.danger { color: #c0392b; }
-    .btn.danger:hover { background: #fdf0ef; }
+    .btn:hover { background: var(--card-hover); border-color: var(--border-hi); color: var(--text); }
+    .btn:active { transform: scale(.97); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+    .btn.danger { color: var(--text-3); }
+    .btn.danger:hover { border-color: var(--paused); color: var(--paused); background: var(--paused-bg); }
+
+    /* ── Position hint ── */
+    .pos-hint {
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      font-size: 11px; color: var(--text-3);
+      padding: 4px 0 2px;
+    }
+    .pos-hint svg { width: 12px; height: 12px; fill: var(--accent); opacity: .6; flex-shrink: 0; }
   </style>
 </head>
 <body>
 
-  <div class="header">Smart Video Controls</div>
-
-  <!-- Status -->
-  <div class="section">
-    <div class="section-title">Video Status</div>
-    <div id="status" class="no-video">Checking…</div>
-  </div>
-
-  <!-- Quick Controls -->
-  <div class="section">
-    <div class="section-title">Quick Controls</div>
-    <div class="controls">
-      <button class="ctrl-btn" data-action="speedDown" title="Speed down">
-        ⏪<span class="label">Slower</span>
-      </button>
-      <button class="ctrl-btn" data-action="skipBack" title="Skip back 10s">
-        ↩<span class="label">-10s</span>
-      </button>
-      <button class="ctrl-btn" data-action="playPause" title="Play / Pause" id="playPauseBtn">
-        ▶<span class="label">Play</span>
-      </button>
-      <button class="ctrl-btn" data-action="skipForward" title="Skip forward 10s">
-        ↪<span class="label">+10s</span>
-      </button>
-      <button class="ctrl-btn" data-action="speedUp" title="Speed up">
-        ⏩<span class="label">Faster</span>
-      </button>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </div>
+    <div>
+      <div class="header-name">Smart Video Controls</div>
+      <div class="header-sub">Keyboard · Position · Speed</div>
     </div>
   </div>
 
-  <!-- Shortcuts -->
-  <div class="section">
-    <div class="section-title">Keyboard Shortcuts — click Edit to change</div>
-    <table id="shortcuts-table">
-      <!-- rows injected by popup.js -->
-    </table>
-    <div class="btn-row">
-      <button class="btn danger" id="reset-btn">Reset to Defaults</button>
-    </div>
-  </div>
+  <div class="wrap">
 
-  <!-- Logger -->
-  <div class="section">
-    <div class="section-title">Debug Logger</div>
-    <div class="btn-row">
-      <button class="btn primary" id="toggle-logger-btn">Show Logger</button>
-      <button class="btn" id="clear-logs-btn">Clear Logs</button>
+    <!-- Status -->
+    <div class="section">
+      <div class="section-title">Video Status</div>
+      <div id="status" class="no-video">Checking…</div>
     </div>
+
+    <!-- Quick Controls -->
+    <div class="section">
+      <div class="section-title">Quick Controls</div>
+      <div class="controls">
+        <button class="ctrl-btn" data-action="speedDown" title="Speed down">
+          ⏪<span class="label">Slower</span>
+        </button>
+        <button class="ctrl-btn" data-action="skipBack" title="Skip back 10s">
+          ↩<span class="label">−10s</span>
+        </button>
+        <button class="ctrl-btn" data-action="playPause" title="Play / Pause" id="playPauseBtn">
+          <span class="icon">▶</span><span class="label">Play</span>
+        </button>
+        <button class="ctrl-btn" data-action="skipForward" title="Skip forward 10s">
+          ↪<span class="label">+10s</span>
+        </button>
+        <button class="ctrl-btn" data-action="speedUp" title="Speed up">
+          ⏩<span class="label">Faster</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Shortcuts -->
+    <div class="section">
+      <div class="section-title">Keyboard Shortcuts — click Edit to rebind</div>
+      <table id="shortcuts-table">
+        <!-- rows injected by popup.js -->
+      </table>
+      <div class="btn-row">
+        <button class="btn danger" id="reset-btn">Reset to Defaults</button>
+      </div>
+    </div>
+
+    <!-- Logger -->
+    <div class="section">
+      <div class="section-title">Debug Logger</div>
+      <div class="btn-row">
+        <button class="btn primary" id="toggle-logger-btn">Show Logger</button>
+        <button class="btn" id="clear-logs-btn">Clear Logs</button>
+      </div>
+    </div>
+
+    <!-- Position hint -->
+    <div class="pos-hint">
+      <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+      Video positions are automatically saved &amp; restored
+    </div>
+
   </div>
 
   <script src="popup.js"></script>
