@@ -1,7 +1,7 @@
 {
-  "name": "jolly-wu",
+  "name": "smart-video-controls",
   "version": "1.0.0",
-  "description": "Enhance your video viewing experience by navigating easily with intuitive keyboard shortcuts and seamlessly resuming internet videos from where you left off.",
+  "description": "Enhance your video viewing experience with intuitive keyboard shortcuts and seamless resume from where you left off.",
   "main": "background.js",
   "scripts": {
     "test": "playwright test",
