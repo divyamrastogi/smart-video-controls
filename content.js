@@ -39,6 +39,10 @@
   let trackedVideo = null;
   let saveTimer = null;
 
+  // Debug mode is OFF by default. Does NOT persist across page loads.
+  // Enable via window.SmartVideoControls.enableDebug() or the popup toggle.
+  let debugEnabled = false;
+
   // ── Position storage ─────────────────────────────────────────────────────────
 
   function getPositionKey() {
@@ -256,20 +260,18 @@
     logEntriesEl = logEl.querySelector('#svc-log-entries');
 
     logEl.querySelector('#svc-log-close').addEventListener('click', () => setLoggerVisible(false));
-
-    // Restore last visibility preference
-    chrome.storage.local.get(LOGGER_KEY, (r) => {
-      if (r[LOGGER_KEY]) setLoggerVisible(true);
-    });
+    // Debug is off by default — do NOT restore visibility from storage.
   }
 
   function setLoggerVisible(visible) {
     logVisible = visible;
+    debugEnabled = visible;
     if (logEl) logEl.style.display = visible ? 'block' : 'none';
-    chrome.storage.local.set({ [LOGGER_KEY]: visible });
+    // Do NOT persist to storage — debug state is session-only.
   }
 
   function svcLog(msg) {
+    if (!debugEnabled) return;
     const ts = new Date().toISOString().substring(11, 23);
     const ctx = IS_IFRAME ? '[iframe]' : '[top]';
     const line = '[' + ts + '] ' + ctx + ' ' + msg;
@@ -378,4 +380,23 @@
   });
 
   init();
+
+  // ── Developer console API ─────────────────────────────────────────────────────
+  // Usage: SmartVideoControls.enableDebug() / SmartVideoControls.disableDebug()
+  // Does NOT persist — debug is off on every fresh page load.
+
+  if (!IS_IFRAME) {
+    window.SmartVideoControls = {
+      enableDebug() {
+        if (!logEl) createLogger();
+        setLoggerVisible(true);
+        console.log('[SmartVideoControls] Debug enabled. Call SmartVideoControls.disableDebug() to turn off.');
+      },
+      disableDebug() {
+        setLoggerVisible(false);
+        console.log('[SmartVideoControls] Debug disabled.');
+      },
+      isDebugEnabled: () => debugEnabled,
+    };
+  }
 })();

@@ -256,12 +256,12 @@ function cancelEditing() {
 
 // ── Logger toggle ─────────────────────────────────────────────────────────────
 
-async function syncLoggerButtonLabel() {
+function syncLoggerButtonLabel() {
   const btn = document.getElementById('toggle-logger-btn');
   if (!btn) return;
-  const data = await chrome.storage.local.get('svc_logger_visible');
-  loggerVisible = !!data.svc_logger_visible;
-  btn.textContent = loggerVisible ? 'Hide Logger' : 'Show Logger';
+  // Debug is off by default — always start with "Show Logger", no storage read.
+  loggerVisible = false;
+  btn.textContent = 'Show Logger';
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -284,11 +284,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderShortcuts();
   });
 
-  // Logger toggle
+  // Logger toggle — session only, no storage persistence
   document.getElementById('toggle-logger-btn').addEventListener('click', async () => {
     loggerVisible = !loggerVisible;
     await sendToTab({ type: 'svc-toggle-logger', visible: loggerVisible });
-    await chrome.storage.local.set({ svc_logger_visible: loggerVisible });
     document.getElementById('toggle-logger-btn').textContent =
       loggerVisible ? 'Hide Logger' : 'Show Logger';
   });
