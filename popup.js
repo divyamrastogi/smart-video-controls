@@ -7,13 +7,13 @@
  */
 
 const DEFAULT_SHORTCUTS = {
-  playPause:   { key: ' ',          label: 'Space' },
-  skipForward: { key: 'ArrowRight', label: '→'     },
-  skipBack:    { key: 'ArrowLeft',  label: '←'     },
-  volumeUp:    { key: 'ArrowUp',    label: '↑'     },
-  volumeDown:  { key: 'ArrowDown',  label: '↓'     },
-  speedUp:     { key: '>',          label: '>'     },
-  speedDown:   { key: '<',          label: '<'     },
+  playPause:   { key: ' ',          label: 'Space', modifiers: {} },
+  skipForward: { key: 'ArrowRight', label: '→',     modifiers: {} },
+  skipBack:    { key: 'ArrowLeft',  label: '←',     modifiers: {} },
+  volumeUp:    { key: 'ArrowUp',    label: '↑',     modifiers: {} },
+  volumeDown:  { key: 'ArrowDown',  label: '↓',     modifiers: {} },
+  speedUp:     { key: '>',          label: '>',     modifiers: {} },
+  speedDown:   { key: '<',          label: '<',     modifiers: {} },
 };
 
 const ACTION_LABELS = {
@@ -229,16 +229,33 @@ function startEditing(action) {
       return;
     }
 
-    const key = e.key;
-    const label = key === ' ' ? 'Space' : key;
-    currentShortcuts[action] = { key, label };
+    // Ignore bare modifier keypresses — wait for the actual key
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+
+    const modifiers = {
+      ctrl:  e.ctrlKey  || false,
+      alt:   e.altKey   || false,
+      shift: e.shiftKey || false,
+      meta:  e.metaKey  || false,
+    };
+
+    const parts = [];
+    if (modifiers.ctrl)  parts.push('Ctrl');
+    if (modifiers.alt)   parts.push('Alt');
+    if (modifiers.shift) parts.push('Shift');
+    if (modifiers.meta)  parts.push('Meta');
+    const keyName = e.key === ' ' ? 'Space' : e.key;
+    parts.push(keyName);
+
+    currentShortcuts[action] = { key: e.key, label: parts.join('+'), modifiers };
 
     saveShortcuts();
     cancelEditing();
     renderShortcuts();
   };
 
-  document.addEventListener('keydown', editingKeyHandler, { capture: true, once: true });
+  // Note: not `once: true` because we skip bare modifier keypresses above
+  document.addEventListener('keydown', editingKeyHandler, { capture: true });
 }
 
 function cancelEditing() {
