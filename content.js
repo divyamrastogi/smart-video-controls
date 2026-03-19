@@ -24,13 +24,13 @@
   const SPEED_STEP = 0.25;
 
   const DEFAULT_SHORTCUTS = {
-    playPause:   { key: ' ',          label: 'Space' },
-    skipForward: { key: 'ArrowRight', label: '→'     },
-    skipBack:    { key: 'ArrowLeft',  label: '←'     },
-    volumeUp:    { key: 'ArrowUp',    label: '↑'     },
-    volumeDown:  { key: 'ArrowDown',  label: '↓'     },
-    speedUp:     { key: '>',          label: '>'     },
-    speedDown:   { key: '<',          label: '<'     },
+    playPause:   { key: ' ',          label: 'Space', modifiers: {} },
+    skipForward: { key: 'ArrowRight', label: '→',     modifiers: {} },
+    skipBack:    { key: 'ArrowLeft',  label: '←',     modifiers: {} },
+    volumeUp:    { key: 'ArrowUp',    label: '↑',     modifiers: {} },
+    volumeDown:  { key: 'ArrowDown',  label: '↓',     modifiers: {} },
+    speedUp:     { key: '>',          label: '>',     modifiers: {} },
+    speedDown:   { key: '<',          label: '<',     modifiers: {} },
   };
 
   // ── State ────────────────────────────────────────────────────────────────────
@@ -171,7 +171,13 @@
 
   function findAction(event) {
     for (const [action, def] of Object.entries(shortcuts)) {
-      if (event.key === def.key) return action;
+      if (event.key !== def.key) continue;
+      const m = def.modifiers || {};
+      if (!!event.ctrlKey  !== !!m.ctrl)  continue;
+      if (!!event.altKey   !== !!m.alt)   continue;
+      if (!!event.shiftKey !== !!m.shift) continue;
+      if (!!event.metaKey  !== !!m.meta)  continue;
+      return action;
     }
     return null;
   }
@@ -187,7 +193,10 @@
     return iframes.length > 0;
   }
 
-  document.addEventListener('keydown', (event) => {
+  // Listen on `window` in capture phase so we run before document-level listeners
+  // (including the video player's own keyboard shortcuts). stopImmediatePropagation
+  // prevents all subsequent handlers — including the player's — from seeing the event.
+  window.addEventListener('keydown', (event) => {
     // Never capture keys typed into inputs
     const tag = event.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target.isContentEditable) return;
@@ -198,12 +207,15 @@
     const video = getActiveVideo();
     if (video) {
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       applyCommand(action);
     } else if (!IS_IFRAME) {
       // No video on this page — forward shortcut to iframes
       const hadIframes = forwardToIframes(action);
-      if (hadIframes) event.preventDefault();
+      if (hadIframes) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
     }
   }, /* capture */ true);
 
