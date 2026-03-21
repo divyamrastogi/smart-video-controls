@@ -5,7 +5,12 @@
   "main": "background.js",
   "scripts": {
     "test": "playwright test",
-    "test:animepahe": "playwright test --grep @animepahe"
+    "test:animepahe": "playwright test --grep @animepahe",
+    "publish": "node publish.js",
+    "publish:dry-run": "node publish.js --dry-run",
+    "publish:patch": "node publish.js --bump patch --publish",
+    "publish:minor": "node publish.js --bump minor --publish",
+    "publish:major": "node publish.js --bump major --publish"
   },
   "keywords": [],
   "author": "",
